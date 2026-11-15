@@ -347,10 +347,16 @@ namespace Jellyfin.Profiles.Auth
             // apps" on was enough to open a PIN-less profile from the internet. A PIN stays the credential,
             // so a profile with one and no list is untouched. The administrator may allow it from anywhere
             // (ClientPinLoginFromAnywhere); the default is home. Declined with the usual message.
+            //
+            // An address the administrator trusted for this household counts as home (2.0.1): a household
+            // whose server is somewhere else had its PIN-less profiles refused on its own television, while
+            // the web switcher and the picker already opened them from that address (#42). Same lookup as
+            // theirs, on the address Jellyfin resolved, never a header read here.
             if ((string.IsNullOrEmpty(mapping.PinHash)
                     || access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted)
                 && config?.ClientPinLoginFromAnywhere != true
-                && !RequestDevice.IsLocal)
+                && !RequestDevice.IsLocal
+                && !IsTrustedAddress(config, mapping))
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId}, which has {Why} and was "
@@ -654,6 +660,26 @@ namespace Jellyfin.Profiles.Auth
         /// profile" and "not ours" must be indistinguishable from outside, or the response enumerates
         /// which accounts are Bonfire profiles.
         /// </summary>
+        /// <summary>
+        /// Whether this sign-in comes from an address the administrator trusted for the profile's
+        /// household. Any doubt is no: no address, no list, or a lookup that throws.
+        /// </summary>
+        private bool IsTrustedAddress(Configuration.PluginConfiguration? config, Configuration.ProfileMapping mapping)
+        {
+            if (config?.TrustedAddressEntries == null || config.TrustedAddressEntries.Count == 0) return false;
+            try
+            {
+                var users = _services?.GetService(typeof(IUserManager)) as IUserManager;
+                return TrustedAddresses.Applies(
+                    config, RequestDevice.Address, mapping.MasterUserId, mapping.ProfileUserId,
+                    id => TrustedAddresses.IsAdministrator(users, id));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private static AuthenticationException Decline()
             => new AuthenticationException("Invalid username or password entered.");
     }

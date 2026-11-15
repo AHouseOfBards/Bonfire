@@ -158,10 +158,12 @@ namespace Jellyfin.Profiles
                 // Whether Jellyfin puts the caller at home, decided here because the provider is handed
                 // nothing about the request: the address after Jellyfin's known proxies (ClientAddress),
                 // judged by its INetworkManager as elsewhere in this file. Unknown is not home (R-1334).
+                // The address too, for trusted addresses (the provider reads Auth.RequestDevice.Address).
                 bool atHome;
+                System.Net.IPAddress? from = null;
                 try
                 {
-                    var from = Auth.ClientAddress.Of(context);
+                    from = Auth.ClientAddress.Of(context);
                     atHome = from != null && networkManager != null && networkManager.IsInLocalNetwork(from);
                 }
                 catch (Exception ex)
@@ -179,7 +181,8 @@ namespace Jellyfin.Profiles
                         context.Request.Headers["Authorization"],
                         context.Request.Headers["X-Emby-Authorization"],
                         "Client"),
-                    atHome);
+                    atHome,
+                    from);
 
                 // Every POST here may sign somebody in. The note is started in this method so it flows down
                 // to the PIN provider (which marks a PIN or an empty box) and the session listener (which

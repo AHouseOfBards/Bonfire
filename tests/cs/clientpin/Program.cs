@@ -311,6 +311,62 @@ Anywhere(false);
 FromDevice("family-tv", home: true);
 Ok("at home, a PIN-less profile opens", Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
 Ok("and a profile with a device list opens on a device that is on it", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// An address the administrator trusted for the household counts as home (2.0.1). Logan's server is
+// not where he lives, and his television's PIN-less profile was refused at his own house, while the
+// web switcher and the picker already opened it from a trusted address (#42).
+{
+    var captureFrom = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static,
+        new[] { typeof(string), typeof(string), typeof(bool), typeof(System.Net.IPAddress) });
+    var entryType = asm.GetType("Jellyfin.Profiles.Configuration.TrustedAddressEntry", true);
+    var trustedList = (System.Collections.IList)cfgType.GetProperty("TrustedAddressEntries").GetValue(config);
+    object Entry(string address, Guid household)
+    {
+        var e = Activator.CreateInstance(entryType);
+        entryType.GetProperty("Address").SetValue(e, address);
+        entryType.GetProperty("UserIds").SetValue(e, new List<Guid> { household });
+        return e;
+    }
+    void FromAway(string address)
+    {
+        if (captureFrom != null) captureFrom.Invoke(null, new object[] { "family-tv", null, false, System.Net.IPAddress.Parse(address) });
+        else FromDevice("family-tv", home: false);
+    }
+    UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+    UserManagerStub.Add(GUEST, MakeUser(GUEST, "Bardguest"));
+    UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
+
+    trustedList.Add(Entry("76.78.141.0/24", MASTER));
+    FromAway("76.78.141.5");
+    Ok("from an address trusted for the household, a PIN-less profile opens",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+    kidListHere.Add("family-tv");
+    Ok("and so does a profile with a device list, on a device that is on it",
+       Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+    kidListHere.Clear();
+    Ok("a typed value is still refused for a PIN-less profile",
+       Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
+
+    FromAway("203.0.113.9");
+    Ok("from an address outside the trusted range it is still refused",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+    trustedList.Clear();
+    trustedList.Add(Entry("76.78.141.0/24", LONER));
+    FromAway("76.78.141.5");
+    Ok("an address trusted for another household does not count",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+    trustedList.Clear();
+    trustedList.Add(Entry("76.78.141.0/24", MASTER));
+    UserManagerStub.Administrators.Add(GUEST);
+    Ok("nor for an account that administers the server",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+    UserManagerStub.Administrators.Clear();
+
+    trustedList.Clear();
+    FromDevice("family-tv", home: true);
+}
 kidListHere.Clear();
 
 // The hole, closed. This is the curl-from-anywhere case.
@@ -1706,8 +1762,21 @@ public class UserManagerStub : DispatchProxy
 
     public static IUserManager Create() => Create<IUserManager, UserManagerStub>();
 
+    /// <summary>Accounts that administer the server, for trusted addresses (never for an administrator).</summary>
+    public static readonly HashSet<Guid> Administrators = new();
+
     protected override object? Invoke(MethodInfo targetMethod, object?[]? args)
     {
+        if (targetMethod.Name == "GetUserDto" && args?[0] is User asked)
+        {
+            return new MediaBrowser.Model.Dto.UserDto
+            {
+                Id = asked.Id,
+                Name = asked.Username,
+                Policy = new MediaBrowser.Model.Users.UserPolicy { IsAdministrator = Administrators.Contains(asked.Id) },
+            };
+        }
+
         if (targetMethod.Name != "GetUserById")
         {
             throw new NotSupportedException(
