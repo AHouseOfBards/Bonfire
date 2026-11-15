@@ -426,7 +426,10 @@ namespace Jellyfin.Profiles.Controllers
             // this one door open.
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            var nameError = ValidateProfileName(request.ProfileName) ?? ValidateProfileNameFree(_userManager, request.ProfileName);
+            // A name that is another account's username is allowed: a sign-in screen marks it
+            // (ProfileNameRewriter.ClashMarker). One the household already has is refused below, where the
+            // system username is built.
+            var nameError = ValidateProfileName(request.ProfileName);
             if (nameError != null) return BadRequest(nameError);
 
             // One creation at a time. The limit is counted before the account is created and
@@ -496,6 +499,9 @@ namespace Jellyfin.Profiles.Controllers
                 ? CheckLibraryAvatar(request.AvatarLibraryId)
                 : CheckProfileImage(Guid.Empty, request.ProfileImage, null);
             if (pictureError != null) return BadRequest(pictureError);
+
+            var mainNameError = ValidateNotMainAccountName(profileName, masterUser.Username);
+            if (mainNameError != null) return BadRequest(mainNameError);
 
             string systemUsername = $"{masterUser.Username}_{profileName.Replace(" ", "")}";
 
@@ -2173,16 +2179,9 @@ namespace Jellyfin.Profiles.Controllers
                     return Unauthorized("Unauthorized profile update attempt.");
                 }
 
-                // A new name must not be an account's username (R-1336). One it already has is
-                // left alone, so a profile named before this check can still be edited.
-                // Not ProfileName?.Trim(): ValidateProfileName above has refused a missing name,
-                // and the "?." told the compiler it might be null from here on, which failed
-                // the -warnaserror build at the two later .Trim() calls.
-                if (!string.Equals(mapping.ProfileName, request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase))
-                {
-                    var takenError = ValidateProfileNameFree(_userManager, request.ProfileName, request.ProfileId);
-                    if (takenError != null) return BadRequest(takenError);
-                }
+                // A name that is another account's username is allowed: a sign-in screen marks it
+                // (ProfileNameRewriter.ClashMarker). One the household already has is refused below,
+                // where the new system username is checked.
             }
 
             if (!string.IsNullOrEmpty(request.Pin))
@@ -2248,6 +2247,9 @@ namespace Jellyfin.Profiles.Controllers
             // changed the picture (ST-11).
             if (request.ProfileId != masterUserId)
             {
+                var mainNameError = ValidateNotMainAccountName(request.ProfileName, masterUser.Username);
+                if (mainNameError != null) return BadRequest(mainNameError);
+
                 var wantedUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
                 if (!string.Equals(targetUser.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)
                     && GetAllUsers().Any(u => string.Equals(u.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)))

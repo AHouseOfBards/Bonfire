@@ -654,18 +654,23 @@ Ok("never one in a Bonfire", r.status == 400 && (string)r.value == "It's in a Bo
 groups.Remove(group);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "kid")));
 Ok("a name the household already has is refused", r.status == 400 && (string)r.value == "A profile with this name already exists.", Text(r));
-// A display name that is someone's username (R-1336). Jellyfin looks a typed name up as a
-// username first, so a "Mum" tile reached the real Mum, who could never sign in, and every
-// wrong PIN counted against her. Refused wherever a name is set; an account keeps its own name.
-r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "mum")));
-Ok("a name that is another account's username is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
-// Creating one gets as far as making the account when it is not refused, which this
-// world cannot do: that surfaces as an exception, and a failed case rather than a crash.
-try { r = Call("CreateProfile", HOME, B(("ProfileName", "Dad"), ("MasterPin", "1234"))); }
+// A profile named like its own main account is refused: one household, two tiles of the same
+// name. Another account's username is not (from 2.0.1, #46): a sign-in screen marks the tile so it
+// cannot sign in as that account (ProfileNameRewriter.ClashMarker), and refusing it made a household
+// rename a profile because of an account it has nothing to do with.
+r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "parent")));
+Ok("a name that is the household's main account is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+try { r = Call("CreateProfile", HOME, B(("ProfileName", "Parent"), ("MasterPin", "1234"))); }
 catch (Exception ex) { r = (-1, "threw " + (ex.InnerException ?? ex).GetType().Name); }
 Ok("so is creating a profile with it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
-r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "mum"), ("MasterPin", "1234")));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "PARENT"), ("MasterPin", "1234")));
 Ok("so is renaming one to it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+// Creating one gets as far as making the account when it is not refused, which this world
+// cannot do: that surfaces as an exception, which here means it was not refused for its name.
+try { r = Call("CreateProfile", HOME, B(("ProfileName", "Dad"), ("MasterPin", "1234"))); }
+catch (Exception ex) { r = (-1, "threw " + (ex.InnerException ?? ex).GetType().Name); }
+Ok("creating a profile named like another household's account is not refused for its name",
+   !(r.status == 400 && ((string)r.value).Contains("already exists")), Text(r));
 cfgType.GetProperty("MaxProfilesPerUser").SetValue(config, 1);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME)));
 Ok("past the household's limit is refused", r.status == 400 && ((string)r.value).StartsWith("Maximum profile limit"), Text(r));
@@ -674,6 +679,10 @@ Ok("and none of that changed anything", world.Log.Count == 0 && P(Row(DAD), "Mas
 // (After that check: this one is a real update and logs its writes.)
 r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "Kid"), ("MasterPin", "1234")));
 Ok("a profile keeping its own name is not stopped by the name check", r.status == 200, Text(r));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "mum"), ("MasterPin", "1234")));
+Ok("renaming a profile to another household's account name is allowed", r.status == 200, Text(r));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "Kid"), ("MasterPin", "1234")));
+Ok("(and back)", r.status == 200, Text(r));
 world.Log.Clear();
 
 // R-1070: the password change is the step that can fail, and it came after the account had

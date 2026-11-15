@@ -397,6 +397,16 @@ Ok("a display name and the right PIN resolve to the real account",
 Ok("and the wrong PIN is still refused",
    TryName("kids", "4822") == "!AuthenticationException");
 
+// A name that is another account's username is shown with a zero-width space after it (#46), and
+// the app sends it back that way. Only a trailing one is the marker: one anywhere else is a
+// different name, which matches nothing.
+Ok("a display name with the sign-in screen's marker resolves to the real account",
+   TryName("kids​", "4821") == "Bardkids");
+Ok("and with the wrong PIN is refused",
+   TryName("kids​", "4822") == "!AuthenticationException");
+Ok("a marker in the middle is not taken off",
+   TryName("ki​ds", "4821") == "!AuthenticationException");
+
 // A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). Jellyfin
 // checks the account being signed into, which is the profile's and was never turned off.
 var offMaster = MakeUser(MASTER, "bard");

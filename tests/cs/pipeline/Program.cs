@@ -604,9 +604,11 @@ async Task<string> RunPrivate(string method, string path, string verb, RequestDe
     var m = typeof(ProfilesIndexMiddleware).GetMethod(method, System.Reflection.BindingFlags.Instance
         | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
     if (m == null) throw new InvalidOperationException(method + " is gone");
+    // RewriteOwnNameAsync takes the user manager from 2.0.1, to ask whether a name is another
+    // account's username. Built from the parameter list so this still runs against an older build.
     await (Task)m.Invoke(mw, method == "Invoke"
         ? new object[] { context, serverConfig, userManager, deviceManager, sessionManager, networkManager }
-        : new object[] { context });
+        : m.GetParameters().Length == 2 ? new object[] { context, userManager } : new object[] { context });
     return Encoding.UTF8.GetString(body.ToArray());
 }
 

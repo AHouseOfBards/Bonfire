@@ -386,7 +386,9 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// The names households gave their profiles. An Android TV sign-in screen shows them and hashes
-        /// them into the device id it signs in with.
+        /// them into the device id it signs in with. Each comes twice, plain and with
+        /// <see cref="ProfileNameRewriter.ClashMarker"/> after it, because a name that is another
+        /// account's username is shown (and so hashed) with the marker.
         /// </summary>
         internal static IEnumerable<string> HouseholdNames(PluginConfiguration config)
         {
@@ -395,6 +397,7 @@ namespace Jellyfin.Profiles.Auth
             return config.Mappings
                 .Where(m => m.ProfileUserId != m.MasterUserId && !string.IsNullOrWhiteSpace(m.ProfileName))
                 .Select(m => m.ProfileName)
+                .SelectMany(n => new[] { n, n.Trim() + ProfileNameRewriter.ClashMarker })
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
         }

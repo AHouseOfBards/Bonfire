@@ -270,7 +270,7 @@ namespace Jellyfin.Profiles
             // afterwards. See ProfileNameRewriter.
             if (IsOwnUserPath(context))
             {
-                await RewriteOwnNameAsync(context).ConfigureAwait(false);
+                await RewriteOwnNameAsync(context, userManager).ConfigureAwait(false);
                 return;
             }
 
@@ -604,7 +604,7 @@ namespace Jellyfin.Profiles
         /// Captures one of those responses and renames the profile inside it, or returns Jellyfin's own
         /// bytes untouched.
         /// </summary>
-        private async Task RewriteOwnNameAsync(HttpContext context)
+        private async Task RewriteOwnNameAsync(HttpContext context, IUserManager userManager)
         {
             var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
             if (originalBody == null)
@@ -651,6 +651,7 @@ namespace Jellyfin.Profiles
                         produced,
                         context.Response.ContentType,
                         Controllers.ProfilesBaseController.ReadConfigSnapshot(),
+                        userManager,
                         _logger);
                 }
                 catch (Exception ex)

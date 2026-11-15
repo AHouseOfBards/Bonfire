@@ -2373,6 +2373,18 @@ namespace Jellyfin.Profiles.Controllers
         /// username failed inside <c>CreateUserAsync</c> as a 500 with no message, and a long name
         /// went unchecked into every screen showing it, other households' switchers included.
         /// </summary>
+        /// <summary>
+        /// Refuses a profile named like its own main account. The two would be one household with two
+        /// tiles of the same name, and on a sign-in screen the profile's would only differ by an
+        /// invisible marker (ProfileNameRewriter.ClashMarker). Another household's names, and other
+        /// accounts' usernames, are allowed.
+        /// </summary>
+        internal static string? ValidateNotMainAccountName(string? name, string? mainUsername)
+            => !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(mainUsername)
+               && string.Equals(name.Trim(), mainUsername.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? "A profile with this name already exists."
+                : null;
+
         internal static string? ValidateProfileName(string? name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "Enter a name for the profile.";
@@ -2384,20 +2396,6 @@ namespace Jellyfin.Profiles.Controllers
                 return "A profile name can use letters, numbers, spaces and - ' . _ @ +.";
 
             return null;
-        }
-
-        /// <summary>
-        /// Why <paramref name="name"/> cannot be a profile's name because an account already uses it,
-        /// or null (R-1336). Jellyfin's <c>AuthenticateUser</c> looks a typed name up with
-        /// <c>GetUserByName</c> before asking any provider, so a "Bob" tile signs in as the real Bob:
-        /// it can never open, and each wrong PIN counts against Bob. <paramref name="except"/> is an
-        /// account allowed to keep its own name.
-        /// </summary>
-        internal static string? ValidateProfileNameFree(IUserManager users, string? name, Guid? except = null)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return null;
-            var taken = users.GetUserByName(name.Trim());
-            return taken != null && taken.Id != except ? "A user with this name already exists." : null;
         }
 
         /// <summary>

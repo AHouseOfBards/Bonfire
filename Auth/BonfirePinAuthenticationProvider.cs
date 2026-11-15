@@ -164,13 +164,25 @@ namespace Jellyfin.Profiles.Auth
             }
 
             // Only this household, and never the master: it keeps its real username and must not become
-            // PIN-openable as a side effect of a name lookup.
+            // PIN-openable as a side effect of a name lookup. The marker a sign-in screen puts after a name
+            // that is another account's username comes back with it, and is taken off here
+            // (ProfileNameRewriter.ClashMarker). The device above was resolved from the name as sent,
+            // because that is what the app hashed.
+            var typed = ProfileNameRewriter.StripClashMarker(username);
             var mapping = config.Mappings.FirstOrDefault(m =>
                 m.MasterUserId == master
                 && m.ProfileUserId != master
-                && string.Equals(m.ProfileName, username, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(m.ProfileName?.Trim(), typed, StringComparison.OrdinalIgnoreCase));
 
-            if (mapping == null) throw Decline();
+            if (mapping == null)
+            {
+                // Otherwise all the log says is Jellyfin's "Invalid username or password".
+                _logger.LogInformation(
+                    "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, but household {Master} has no "
+                    + "profile of that name.",
+                    typed, deviceId, master);
+                throw Decline();
+            }
 
             var user = _services?.GetService(typeof(IUserManager)) is IUserManager users
                 ? users.GetUserById(mapping.ProfileUserId)

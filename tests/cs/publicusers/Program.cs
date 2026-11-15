@@ -17,6 +17,7 @@ using MediaBrowser.Model.Dto;
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Enums;
 using MediaBrowser.Model.Users;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 // What we write into /Users/Public.
@@ -918,17 +919,37 @@ if (resolve != null)
        friendlyCamel.Contains("\"kids\"", StringComparison.Ordinal)
        && !friendlyCamel.Contains("Bardkids", StringComparison.Ordinal));
 
-    // A display name that is another account's username is not offered (R-1336). Jellyfin looks
-    // a typed name up as a username before asking the provider, so a "kids" tile would sign in
-    // as the real "kids": it could never open, and each wrong PIN would count against that
-    // account. The profile falls back to its system username. This covers a config that
-    // predates the check and an account made later.
+    // A display name that is another account's username (R-1336, #46). Jellyfin looks a typed
+    // name up as a username before asking the provider, so a plain "kids" tile would sign in as
+    // the real "kids": it could never open, and each wrong PIN would count against that account.
+    // Until 2.0.1 the tile showed the system username, which on a server with a "test" account
+    // read "Bard_test". Now it shows the household's name with a zero-width space after it, which
+    // no username matches and the provider takes off again.
     UserManagerStub.Usernames.Add("Kids");
     var collided = Encoding.UTF8.GetString(Run("application/json", "[]", config));
-    Ok("a profile whose name is another account's username keeps its system username",
-       collided.Contains("Bardkids", StringComparison.Ordinal) && !collided.Contains("\"kids\"", StringComparison.Ordinal),
+    Ok("a profile whose name is another account's username is shown by its name, marked",
+       collided.Contains("\"kids\\u200B\"", StringComparison.Ordinal)
+       && !collided.Contains("Bardkids", StringComparison.Ordinal),
        collided.Length > 400 ? collided.Substring(0, 200) : collided);
+    Ok("and never as the plain name, which would sign in as the other account",
+       !collided.Contains("\"kids\"", StringComparison.Ordinal));
+
+    // The marked name taken too (absurd, but a username can hold one): back to the system
+    // username, a plainer tile rather than one that opens somebody else.
+    UserManagerStub.Usernames.Add("kids​");
+    var twice = Encoding.UTF8.GetString(Run("application/json", "[]", config));
+    Ok("a marked name that is a username too falls back to the system username",
+       twice.Contains("Bardkids", StringComparison.Ordinal) && !twice.Contains("\"kids", StringComparison.Ordinal),
+       twice.Length > 400 ? twice.Substring(0, 200) : twice);
     UserManagerStub.Usernames.Clear();
+
+    // A lookup that throws: the system username, never the plain name.
+    UserManagerStub.ThrowOnName = true;
+    var failed = Encoding.UTF8.GetString(Run("application/json", "[]", config));
+    Ok("a username lookup that fails shows the system username",
+       failed.Contains("Bardkids", StringComparison.Ordinal) && !failed.Contains("\"kids", StringComparison.Ordinal),
+       failed.Length > 400 ? failed.Substring(0, 200) : failed);
+    UserManagerStub.ThrowOnName = false;
 
     // Nothing to rename is not an error: a master, or a server that has not upgraded its
     // mappings, comes back exactly as Jellyfin wrote it.
@@ -1057,10 +1078,11 @@ if (rewrite != null)
 
     string Run2(string body, string contentType = "application/json")
     {
-        var outBytes = (byte[])rewrite.Invoke(null, new object[]
-        {
-            Encoding.UTF8.GetBytes(body), contentType, cfg2, NullLogger.Instance
-        });
+        // From 2.0.1 the rewriter also takes the user manager, to ask whether the name is another
+        // account's username. Built from the parameter list so this still runs against an older build.
+        var outBytes = (byte[])rewrite.Invoke(null, rewrite.GetParameters().Length == 5
+            ? new object[] { Encoding.UTF8.GetBytes(body), contentType, cfg2, userManager, NullLogger.Instance }
+            : new object[] { Encoding.UTF8.GetBytes(body), contentType, cfg2, NullLogger.Instance });
         return outBytes == null ? null : Encoding.UTF8.GetString(outBytes);
     }
 
@@ -1076,6 +1098,18 @@ if (rewrite != null)
     Ok("and so is a camelCase one",
        meCamel != null && meCamel.Contains("\"family\"", StringComparison.Ordinal)
        && !meCamel.Contains("Bard_Family", StringComparison.Ordinal), meCamel);
+
+    // The stored copy must carry the same marked name as the sign-in list (#46). Android TV
+    // paints a saved account from this response and types that name at its next sign-in, so a
+    // plain "family" here, with a "family" account on the server, signs in as that account. Until
+    // 2.0.1 this response said "family" even while the list held the name back.
+    UserManagerStub.Usernames.Add("Family");
+    var meClash = Run2("{\"Name\":\"Bard_Family\",\"Id\":\"" + CHILD.ToString("N") + "\"}");
+    Ok("a name that is another account's username is stored marked, as the list shows it",
+       meClash != null && meClash.Contains("\"family\\u200B\"", StringComparison.Ordinal), meClash);
+    Ok("never plain",
+       meClash == null || !meClash.Contains("\"family\"", StringComparison.Ordinal), meClash);
+    UserManagerStub.Usernames.Clear();
 
     // A Name that is not a string (r2-03-06) is left alone, not thrown on.
     string notAString;
@@ -1352,6 +1386,16 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
         Ok("a television recorded only under sha1(id + name) resolves from its bare id",
            found == m, found.ToString());
 
+        // A name that is another account's username is shown, typed and hashed with the marker
+        // after it (#46), so the session is recorded under that hash.
+        var cMarked = XNewConfig();
+        XMap(cMarked, k, m, "Family");
+        const string markedBare = "bare-tv-id-0003";
+        XDevice(cMarked, XSha1(markedBare + "+" + "Family​"), m, DateTime.UtcNow);
+        var foundMarked = (Guid)xFindMaster.Invoke(null, new object[] { cMarked, markedBare });
+        Ok("a television recorded under sha1(id + marked name) resolves from its bare id",
+           foundMarked == m, foundMarked.ToString());
+
         // And a restriction an administrator made by ticking that recorded row.
         var c2 = XNewConfig();
         var kRestricted = Guid.NewGuid();
@@ -1513,6 +1557,47 @@ Console.WriteLine("── Why a profile goes missing from one television ──�
     }
 }
 
+// ── Why a sign-in screen got no profiles, in the default log (#46) ───────────────
+// Every reason was Debug until 2.0.1, so a household's log said nothing and finding out meant
+// changing Jellyfin's logging. Now Information, once per device per ten minutes, with a cap on
+// how many devices are remembered, because the route is anonymous.
+{
+    Console.WriteLine();
+    Console.WriteLine("── Why a sign-in screen got no profiles ────────────────────────");
+    var declineType = asm.GetType("Jellyfin.Profiles.Auth.SignInListLog", false);
+    var declineLevel = declineType?.GetMethod("DeclineLevel", BindingFlags.NonPublic | BindingFlags.Static);
+    var resetDecline = declineType?.GetMethod("Reset", BindingFlags.NonPublic | BindingFlags.Static);
+    Ok("the sign-in list decides how loudly to log a decline", declineLevel != null && resetDecline != null);
+
+    if (declineLevel != null && resetDecline != null)
+    {
+        resetDecline.Invoke(null, null);
+        var t0 = new DateTime(2026, 11, 15, 12, 0, 0, DateTimeKind.Utc);
+        LogLevel At(string id, DateTime when) => (LogLevel)declineLevel.Invoke(null, new object[] { id, when });
+
+        Ok("a television's first decline is Information", At("tv-1", t0) == LogLevel.Information);
+        Ok("its next one within ten minutes is Debug", At("tv-1", t0.AddMinutes(9)) == LogLevel.Debug);
+        Ok("another television is told on its own", At("tv-2", t0.AddMinutes(9)) == LogLevel.Information);
+        Ok("after ten minutes the first is told again", At("tv-1", t0.AddMinutes(11)) == LogLevel.Information);
+        Ok("a request with no device id is told once too",
+           At(null, t0) == LogLevel.Information && At("  ", t0.AddMinutes(1)) == LogLevel.Debug);
+
+        // Made-up device ids, one per request: past the cap everything is Debug until the oldest
+        // age out, so the log and the memory both stay bounded.
+        resetDecline.Invoke(null, null);
+        var cap = (int)declineType.GetField("MaxDevices", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+        var loud = 0;
+        for (var i = 0; i < cap * 3; i++)
+        {
+            if (At("forged-" + i, t0.AddSeconds(i)) == LogLevel.Information) loud++;
+        }
+        Ok("a flood of made-up device ids logs at most the cap at Information", loud == cap, loud + " of " + cap * 3);
+        Ok("and once the oldest age out a real television is told again",
+           At("tv-3", t0.AddMinutes(30)) == LogLevel.Information);
+        resetDecline.Invoke(null, null);
+    }
+}
+
 Console.WriteLine();
 if (fails.Count > 0)
 {
@@ -1552,6 +1637,9 @@ public class UserManagerStub : DispatchProxy
     /// <summary>Usernames of other accounts on the server.</summary>
     public static readonly HashSet<string> Usernames = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Every GetUserByName throws, as a locked database does.</summary>
+    public static bool ThrowOnName;
+
     // failFirstDtoCalls: how many GetUserDto calls throw before one succeeds - the shape of
     // a SQLite busy error that clears a moment later.
     public static IUserManager Create(Guid id, UserDto dto, int failFirstDtoCalls = 0)
@@ -1579,6 +1667,7 @@ public class UserManagerStub : DispatchProxy
             // Other accounts on the server, by username: the injector asks whether a profile's
             // display name is one of them (R-1336).
             case "GetUserByName":
+                if (ThrowOnName) throw new InvalidOperationException("SQLite Error 5: 'database is locked'");
                 return Usernames.Contains((string)args[0], StringComparer.OrdinalIgnoreCase)
                     ? System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(
                         typeof(Jellyfin.Database.Implementations.Entities.User))

@@ -53,9 +53,10 @@ namespace Jellyfin.Profiles.Auth
 
             if (config?.Mappings == null || !config.EnableClientProfileList)
             {
-                // Debug here and for the other declines below: the route is anonymous, so anybody can
-                // trigger them, and Information is for what an administrator would act on.
-                logger?.LogDebug(
+                // Information once per device per ten minutes, Debug otherwise, here and for the other
+                // declines below: the route is anonymous, so anybody can trigger them (SignInListLog).
+                logger?.Log(
+                    SignInListLog.DeclineLevel("(off)", DateTime.UtcNow),
                     "ProfilesPlugin: user list requested, but showing profiles on sign-in screens is off.");
                 return none;
             }
@@ -65,7 +66,8 @@ namespace Jellyfin.Profiles.Auth
             if (string.IsNullOrWhiteSpace(deviceId))
             {
                 // Both header names are read, so log what each held.
-                logger?.LogDebug(
+                logger?.Log(
+                    SignInListLog.DeclineLevel(null, DateTime.UtcNow),
                     "ProfilesPlugin: user list requested with no DeviceId in the Authorization header, "
                     + "so the household cannot be identified. Authorization: {Header}; X-Emby-Authorization: {EmbyHeader}",
                     string.IsNullOrEmpty(authorizationHeader) ? "absent" : "present, no DeviceId",
@@ -97,7 +99,8 @@ namespace Jellyfin.Profiles.Auth
 
             if (seenUserId == Guid.Empty)
             {
-                logger?.LogDebug(
+                logger?.Log(
+                    SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
                     "ProfilesPlugin: user list requested by device {DeviceId}, which nobody has signed in on yet. "
                     + "Sign in as the account that owns the profiles once on this device.",
                     deviceId);
@@ -127,7 +130,8 @@ namespace Jellyfin.Profiles.Auth
             {
                 // Nobody Bonfire knows. Every other account lands here, which keeps them out of a
                 // household they have nothing to do with.
-                logger?.LogDebug(
+                logger?.Log(
+                    SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
                     "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId} "
                     + "(per {Source}), which is not a Bonfire account. Nothing added.",
                     deviceId, seenUserId, seenFrom);
@@ -321,24 +325,17 @@ namespace Jellyfin.Profiles.Auth
                     //
                     // The provider translates it back on the way in, since a client puts the displayed name
                     // straight into the username field.
-                    var named = ProfileNameRewriter.FriendlyNameFor(config, userId);
-
-                    // Not when the name is another account's username (R-1336). Jellyfin looks a typed name up
-                    // as a username first, so a "Bob" tile would sign in as the real Bob, never open, and count
-                    // each wrong PIN against him. The profile keeps its system username. This covers a name
-                    // chosen before the create/rename check existed and an account made later. If the lookup
-                    // fails the system username is shown: a plainer tile, never a lost one.
-                    if (named != null)
+                    //
+                    // A name that is another account's username gets an invisible marker, or the tile would
+                    // sign in as that account (see ProfileNameRewriter.ClashMarker). If the lookup fails the
+                    // system username is shown: a plainer tile, never one that opens somebody else.
+                    var named = ProfileNameRewriter.SignInNameFor(config, userId, userManager);
+                    if (named != null && named.EndsWith(ProfileNameRewriter.ClashMarker, StringComparison.Ordinal))
                     {
-                        try
-                        {
-                            var other = userManager.GetUserByName(named.Trim());
-                            if (other != null && other.Id != userId) named = null;
-                        }
-                        catch (Exception)
-                        {
-                            named = null;
-                        }
+                        logger.LogInformation(
+                            "ProfilesPlugin: profile {Profile} ({UserId}) has the same name as another account, "
+                            + "so its sign-in tile carries an invisible marker that tells the two apart.",
+                            ProfileNameRewriter.StripClashMarker(named), userId);
                     }
 
                     if (named != null)

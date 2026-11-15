@@ -910,6 +910,12 @@ keeps its saved sign-in when the request is local.
 A profile's `Name` is reported as the name its household gave it, `kids` rather than
 `Bard_kids`. The account isn't renamed.
 
+**A name that is another account's username** is reported with a zero-width space (U+200B)
+after it, here and in `GET /Users/Public`, because Jellyfin signs a typed name in as the
+account with that username. Send the name back as it came. Bonfire takes the mark off at
+sign-in. If the marked name is also taken, or the check fails, the system username is
+reported instead.
+
 ### `POST /QuickConnect/Initiate`
 
 Refused with `401 "Quick connect is disabled"` on an Android TV whose name a household has
