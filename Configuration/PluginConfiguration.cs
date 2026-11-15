@@ -199,18 +199,30 @@ namespace Jellyfin.Profiles.Configuration
         public bool EnableClientPinLogin { get; set; }
 
         /// <summary>
-        /// Lets a profile with no PIN, or one limited to particular devices, be signed in on another app
-        /// from outside the home network (R-1334). Off by default: those two rest on a device id the
-        /// client supplies, which anyone who has seen one can send, so they open only for a caller Jellyfin
-        /// itself places on the local network. A profile with a PIN and no device list is unaffected: the
-        /// PIN is the credential.
+        /// Lets a profile limited to particular devices be signed in on another app from outside the home
+        /// network (R-1334). Off by default: a device list rests on a device id the client supplies, which
+        /// anyone who has seen one can send, so it opens only for a caller Jellyfin itself places on the
+        /// local network, or at a trusted address.
         /// <para>
-        /// A setting, not a fixed limit, because households differ (a PIN-less profile on a TV the family
-        /// also uses away from home is a choice some make). Under Advanced because a wrong value lets a
-        /// stranger into a profile.
+        /// Until 2.0.1 this covered PIN-less profiles too, and off meant they never opened on a television
+        /// away from the server, which is where almost every household is. Those now open anywhere on a
+        /// device the household signed in on with a password; <see cref="ClientNoPinHomeOnly"/> is the
+        /// stricter choice. The property keeps its name so saved settings keep their value.
+        /// </para>
+        /// <para>
+        /// A setting, not a fixed limit, because households differ. Under Advanced because a wrong value
+        /// lets a stranger into a profile.
         /// </para>
         /// </summary>
         public bool ClientPinLoginFromAnywhere { get; set; }
+
+        /// <summary>
+        /// Opens a PIN-less profile on another app only from the home network or a trusted address, as
+        /// before 2.0.1. Off by default: such a profile opens anywhere, but only on a device its household
+        /// signed in on with a password (the rule PINs follow). Stricter only, so a setting an
+        /// administrator may turn on; under Advanced.
+        /// </summary>
+        public bool ClientNoPinHomeOnly { get; set; }
 
         /// <summary>
         /// Adds this household's profiles to the user list a client paints its login screen from, on a

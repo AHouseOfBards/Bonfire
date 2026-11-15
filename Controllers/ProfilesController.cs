@@ -2005,6 +2005,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "ClientPinLoginFromAnywhere", out _))
                     config.ClientPinLoginFromAnywhere = incoming.ClientPinLoginFromAnywhere;
+                if (TryProperty(root, "ClientNoPinHomeOnly", out _))
+                    config.ClientNoPinHomeOnly = incoming.ClientNoPinHomeOnly;
                 // The export leaves the emergency code out, so a file without one keeps the
                 // server's own. A file from before that still carries it, and it is taken.
                 if (!string.IsNullOrEmpty(incoming.PanicCodeHash))
@@ -2102,7 +2104,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "LogoCorners", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
+            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "ClientNoPinHomeOnly", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
             "Announcements", "AccountEmails",
         };
 
@@ -5812,6 +5814,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = request.EnableClientProfileList.Value;
                 if (request.ClientPinLoginFromAnywhere.HasValue)
                     config.ClientPinLoginFromAnywhere = request.ClientPinLoginFromAnywhere.Value;
+                if (request.ClientNoPinHomeOnly.HasValue)
+                    config.ClientNoPinHomeOnly = request.ClientNoPinHomeOnly.Value;
                 if (request.SkipQuickConnectOnKnownDevices.HasValue)
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
                 if (request.ProxyClients != null)

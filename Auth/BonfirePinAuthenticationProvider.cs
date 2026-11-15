@@ -341,20 +341,30 @@ namespace Jellyfin.Profiles.Auth
                 throw Decline();
             }
 
-            // From outside the home network, a profile with no PIN or with a device list does not open
-            // here (R-1334). Both rest on a device id the client supplies, and the device-list and
-            // known-device checks below pass for anybody who has seen a household's id: "PIN login on other
-            // apps" on was enough to open a PIN-less profile from the internet. A PIN stays the credential,
-            // so a profile with one and no list is untouched. The administrator may allow it from anywhere
-            // (ClientPinLoginFromAnywhere); the default is home. Declined with the usual message.
+            // From outside the home network, a profile with a device list does not open here (R-1334). The
+            // list rests on a device id the client supplies, which passes for anybody who has seen it. A PIN
+            // stays the credential, so a profile with one and no list is untouched. The administrator may
+            // allow it from anywhere (ClientPinLoginFromAnywhere); the default is home. Declined with the
+            // usual message.
             //
             // An address the administrator trusted for this household counts as home (2.0.1): a household
             // whose server is somewhere else had its PIN-less profiles refused on its own television, while
             // the web switcher and the picker already opened them from that address (#42). Same lookup as
             // theirs, on the address Jellyfin resolved, never a header read here.
-            if ((string.IsNullOrEmpty(mapping.PinHash)
-                    || access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted)
-                && config?.ClientPinLoginFromAnywhere != true
+            //
+            // 2.0.1 also stopped refusing a PIN-less profile from away by default. Almost every household
+            // is not where its server is, so "home only" meant a PIN-less profile never opened on any
+            // television they owned (Logan). It still needs a device the household signed in on with a
+            // password, checked below, which is the rule PINs follow. ClientNoPinHomeOnly puts the old
+            // rule back for a server that wants it; ClientPinLoginFromAnywhere now covers device lists only.
+            bool noPin = string.IsNullOrEmpty(mapping.PinHash);
+            bool awayRefused = noPin
+                ? config?.ClientNoPinHomeOnly == true
+                    || (access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
+                        && config?.ClientPinLoginFromAnywhere != true)
+                : access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
+                    && config?.ClientPinLoginFromAnywhere != true;
+            if (awayRefused
                 && !RequestDevice.IsLocal
                 && !IsTrustedAddress(config, mapping))
             {
@@ -362,7 +372,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId}, which has {Why} and was "
                     + "asked for from outside the home network.",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(mapping.PinHash) ? "no PIN" : "a device list");
+                    noPin && config?.ClientNoPinHomeOnly == true ? "no PIN" : "a device list");
                 throw Decline();
             }
 

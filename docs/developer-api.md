@@ -886,7 +886,8 @@ the web client. All are off by default.
 | --- | --- |
 | `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. Only on a device the household has signed in on with a password; elsewhere a main account needs its password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
-| `clientPinLoginFromAnywhere` | A profile with no PIN, or with a device list, can be signed in to from outside the home network. Off: those two open only for a caller Jellyfin places on the local network, after its known-proxy rules, or one at an address trusted for that household (`trustedAddressEntries`; never for an administrator's household). A profile with a PIN and no device list is not affected. Under Advanced in **Dashboard → Plugins → Bonfire → Clients**. |
+| `clientPinLoginFromAnywhere` | A profile with a device list can be signed in to from outside the home network. Off: it opens only for a caller Jellyfin places on the local network, after its known-proxy rules, or one at an address trusted for that household (`trustedAddressEntries`; never for an administrator's household). Under Advanced in **Dashboard → Plugins → Bonfire → Clients**. |
+| `clientNoPinHomeOnly` | A profile with no PIN opens only from the home network or a trusted address, as above. Off (the default): it opens anywhere, on a device its household has signed in on with a password. Under Advanced in the same place. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 | `proxyClients` | The apps that get the profile picker. See below. |
 
@@ -2430,6 +2431,7 @@ anything added since you read it.
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |
 | `clientPinLoginFromAnywhere` | boolean | Same. |
+| `clientNoPinHomeOnly` | boolean | Same. |
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB), `maximum` (2048 px, 8 MB) or `ultra` (4096 px, 16 MB). The dashboard calls them Low, Medium, High and Maximum; the stored ids are unchanged. |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
@@ -2595,7 +2597,7 @@ release: **not part of the API.**
 | `DefaultTheme`, `AllowProfileThemes`, `RichThemeMotion` | string, boolean, boolean | See [Themes](#themes). |
 | `LogoImage`, `LogoText`, `LogoAlt`, `LogoCorners` | string or null | The logo (the image file is not in the export). |
 | `DefaultTimeZone`, `DefaultSwitcherLocation`, `DefaultAskOnStartup`, `ProfileImageQuality` | | What an account gets before it chooses. |
-| `EnableClientPinLogin`, `ClientPinLoginFromAnywhere`, `EnableClientProfileList`, `SkipQuickConnectOnKnownDevices`, `ProxyClients` | | What other apps may do. |
+| `EnableClientPinLogin`, `ClientPinLoginFromAnywhere`, `ClientNoPinHomeOnly`, `EnableClientProfileList`, `SkipQuickConnectOnKnownDevices`, `ProxyClients` | | What other apps may do. |
 | `TrustedAddressEntries`, `Announcements`, `AccountEmails`, `EnablePinResetByEmail` | | Trusted addresses, announcements, confirmed addresses, and PIN reset by email. |
 | `Maintenance`, `Onboarding`, `Email` | object | Maintenance, first-time setup and mail settings. `Email` has no `Password`. |
 | `DisallowCustomAvatarUploads`, `EnableStarterAvatars` | boolean | Avatar choices. |

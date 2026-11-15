@@ -294,18 +294,36 @@ var kidListHere = (System.Collections.IList)mappingType.GetProperty("AllowedDevi
 
 Ok("the setting for it exists, and is off by default",
    fromAnywhere != null && (bool)fromAnywhere.GetValue(Activator.CreateInstance(cfgType)) == false);
+
+// 2.0.1: almost every household is away from its server, so "home only" meant a PIN-less profile never
+// opened on any of its televisions. It now opens anywhere on a device the household signed in on with a
+// password, the rule a PIN follows; ClientNoPinHomeOnly puts the old rule back.
+var homeOnlyProp = cfgType.GetProperty("ClientNoPinHomeOnly");
+void HomeOnly(bool on) => homeOnlyProp?.SetValue(config, on);
+Ok("the home-only setting exists, and is off by default",
+   homeOnlyProp != null && (bool)homeOnlyProp.GetValue(Activator.CreateInstance(cfgType)) == false);
 FromDevice("family-tv", home: false);
-Ok("a PIN-less profile is refused from outside the home network, on a device the household uses",
+Ok("a PIN-less profile opens from outside the home network, on a device the household signed in on",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+FromDevice("stranger-tv", home: false);
+Ok("but not on a device the household never signed in on",
    Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+FromDevice("family-tv", home: false);
+HomeOnly(true);
+Ok("with home only on, a PIN-less profile is refused from outside, on a device the household uses",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+Anywhere(true);
+Ok("and 'anywhere' does not undo home only for a PIN-less profile",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+Anywhere(false);
+HomeOnly(false);
 Ok("a profile with a PIN and no device list still opens from outside: the PIN is the credential",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 kidListHere.Add("family-tv");
 Ok("a profile with a device list is refused from outside, on a device that is on it",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 Anywhere(true);
-Ok("with the setting on 'anywhere', a PIN-less profile opens from outside",
-   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
-Ok("and so does a profile with a device list, on a device that is on it",
+Ok("with the setting on 'anywhere', a profile with a device list opens from outside, on a device that is on it",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 Anywhere(false);
 FromDevice("family-tv", home: true);
@@ -336,6 +354,8 @@ Ok("and a profile with a device list opens on a device that is on it", Try(MakeU
     UserManagerStub.Add(GUEST, MakeUser(GUEST, "Bardguest"));
     UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
 
+    // Home only, so a PIN-less profile from away is refused unless the address counts as home.
+    HomeOnly(true);
     trustedList.Add(Entry("76.78.141.0/24", MASTER));
     FromAway("76.78.141.5");
     Ok("from an address trusted for the household, a PIN-less profile opens",
@@ -365,6 +385,7 @@ Ok("and a profile with a device list opens on a device that is on it", Try(MakeU
     UserManagerStub.Administrators.Clear();
 
     trustedList.Clear();
+    HomeOnly(false);
     FromDevice("family-tv", home: true);
 }
 kidListHere.Clear();
