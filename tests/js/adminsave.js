@@ -75,6 +75,7 @@ async function run(fieldValues) {
         enableClientPinLogin: false,
         enableClientProfileList: false,
         clientPinLoginFromAnywhere: false,
+        clientNoPinHomeOnly: false,
         skipQuickConnectOnKnownDevices: false,
         profileImageQuality: 'standard',
         onboardingEnabled: false
@@ -214,6 +215,7 @@ const expected = [
     'enableClientPinLogin',
     'enableClientProfileList',
     'clientPinLoginFromAnywhere',
+    'clientNoPinHomeOnly',
     'skipQuickConnectOnKnownDevices',
     'proxyClients',
     'profileImageQuality',

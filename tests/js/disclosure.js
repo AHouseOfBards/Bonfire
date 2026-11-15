@@ -107,7 +107,7 @@ const ADMIN = {
     },
     clients: {
         basic: ['.jpfProxyClient[checkbox]', '.raised[button]', 'enableClientPinLogin', 'enableClientProfileList', 'skipQuickConnectOnKnownDevices'],
-        more: ['clientPinLoginFromAnywhere']
+        more: ['clientNoPinHomeOnly', 'clientPinLoginFromAnywhere']
     },
     messages: {
         basic: ['annCancel', 'annMessage', 'annSave', 'annSeverity', 'mntClose', 'mntMessage', 'mntOpen', 'mntReopen', 'mntStop', 'mntUntil'],
