@@ -33,8 +33,8 @@ Console.WriteLine("── The theme list ─────────────
 var Plain = new PluginConfiguration();
 PluginConfiguration Srv(string def, bool allow) => new PluginConfiguration { DefaultTheme = def, AllowProfileThemes = allow };
 
-var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "jellyfin-dark", "jellyfin-light", "high-contrast" };
-Ok("twelve themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
+var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "moonfin", "jellyfin-dark", "jellyfin-light", "high-contrast" };
+Ok("thirteen themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
    Themes.All.SequenceEqual(expected));
 Ok("every id is lowercase, which is what the stylesheet keys on",
    Themes.All.All(id => id == id.ToLowerInvariant()));

@@ -1513,6 +1513,7 @@ proper names and aren't translated.
 | `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
 | `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
 | `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
+| `moonfin` | Night navy into indigo, cyan ring, round tiles, light type, outlined pill buttons. Matches the Moonfin app. |
 | `jellyfin-dark` | Jellyfin's own dark look. |
 | `jellyfin-light` | Jellyfin's own light look. |
 | `high-contrast` | Yellow on black, large type. |

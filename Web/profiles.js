@@ -128,7 +128,7 @@
     /// in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three together. A
     /// theme's name is the string theme.<id> (themeName) so "High contrast" can be translated;
     /// proper names (Bonfire, Harvest...) stay as they are in every language file.
-    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom', 'moonfin',
         'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
 
     /// First-time setup steps this script can draw (OnboardingSteps on the server). A newer
@@ -1596,6 +1596,7 @@
         'theme.harvest': 'Harvest',
         'theme.snowfall': 'Snowfall',
         'theme.bloom': 'Bloom',
+        'theme.moonfin': 'Moonfin',
         'theme.jellyfin-dark': 'Jellyfin dark',
         'theme.jellyfin-light': 'Jellyfin light',
         'theme.high-contrast': 'High contrast',
