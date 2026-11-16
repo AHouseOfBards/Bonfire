@@ -89,8 +89,12 @@ var config = configProp.GetValue(plugin);
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var enableProp = cfgType.GetProperty("EnableClientPinLogin", Any);
 Ok("the configuration has an EnableClientPinLogin flag", enableProp != null);
-Ok("and it is OFF by default — this changes how the server authenticates",
-   (bool)enableProp.GetValue(config) == false);
+// A new install turns it on (configbackup holds that). The property itself stays off, so a
+// server upgrading from a file without it is not switched to PIN sign-in behind its back.
+Ok("and it is OFF unless a new install turns it on — this changes how the server authenticates",
+   (bool)enableProp.GetValue(Activator.CreateInstance(cfgType)) == false);
+Ok("a new install turns it on", (bool)enableProp.GetValue(config) == true);
+enableProp.SetValue(config, false);
 
 // NullLogger<T> has a public constructor or an Instance property depending on the abstractions version; use whichever exists.
 var loggerType = typeof(NullLogger<>).MakeGenericType(providerType);

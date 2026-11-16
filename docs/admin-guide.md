@@ -68,9 +68,9 @@ The editor and the theme file format are in [Themes](themes.md).
 
 For apps without a switcher, such as Android TV, Roku and Swiftfin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. What each app can do is in [Apps](clients.md).
 
-- **Let profiles sign in with their PIN.** Off by default. The PIN is typed as the password.
-- **Show profiles on the sign-in screen.** Off by default. Only on devices the household has signed in on.
-- **Open the password field instead of Quick Connect.** Off by default. Android TV only, after a household's first sign-in.
+- **Let profiles sign in with their PIN.** On for a new install. The PIN is typed as the password.
+- **Show profiles on the sign-in screen.** On for a new install. Only on devices the household has signed in on.
+- **Open the password field instead of Quick Connect.** On for a new install. Android TV only, after a household's first sign-in.
 - **Open device-limited profiles from anywhere** (Advanced). Off by default.
 - **Open PIN-less profiles at home only** (Advanced). Off by default. Home is the server's network or a trusted address.
 - **Profile picker (beta).** Sign in with the main account, then pick a profile on the client's home screen. Turn it on per client (Moonfin). Profiles can't sign in directly on Moonfin while it is on.

@@ -169,6 +169,43 @@ var offRestart = new Plugin(new StubPaths(offDir), new RealXml());
 Ok("it is still off after a restart with nothing saved", !offRestart.Configuration.BonfireOn);
 Ok("the file says so", File.ReadAllText(offRestart.ConfigurationFilePath).Contains("<BonfireOn>false</BonfireOn>"));
 
+Console.WriteLine();
+Console.WriteLine("── Television sign-in is on for a new install only ─────────────");
+
+// A household expects its profiles on the television like a streaming service, so a new
+// install lists them there. An upgrade keeps what it had: these were off before 2.0.1.
+var tvDir = NewDir();
+var tvServer = new Plugin(new StubPaths(tvDir), new RealXml());
+Ok("a new install lists profiles on sign-in screens", tvServer.Configuration.EnableClientProfileList);
+Ok("and lets them sign in with their PIN", tvServer.Configuration.EnableClientPinLogin);
+Ok("and skips Quick Connect on a known device", tvServer.Configuration.SkipQuickConnectOnKnownDevices);
+var tvRestart = new Plugin(new StubPaths(tvDir), new RealXml());
+Ok("they are still on after a restart with nothing saved",
+   tvRestart.Configuration.EnableClientProfileList && tvRestart.Configuration.EnableClientPinLogin
+   && tvRestart.Configuration.SkipQuickConnectOnKnownDevices);
+
+var tvOlder = NewDir();
+var tvWriter = new Plugin(new StubPaths(tvOlder), new RealXml());
+tvWriter.Configuration.EnableClientProfileList = false;
+tvWriter.Configuration.EnableClientPinLogin = false;
+tvWriter.Configuration.SkipQuickConnectOnKnownDevices = false;
+tvWriter.SaveConfiguration();
+var tvUpgraded = new Plugin(new StubPaths(tvOlder), new RealXml());
+Ok("a server that had them off keeps them off",
+   !tvUpgraded.Configuration.EnableClientProfileList && !tvUpgraded.Configuration.EnableClientPinLogin
+   && !tvUpgraded.Configuration.SkipQuickConnectOnKnownDevices);
+var tvNoElements = NewDir();
+var tvBare = new Plugin(new StubPaths(tvNoElements), new RealXml());
+tvBare.SaveConfiguration();
+File.Delete(tvBare.ConfigurationFilePath + ".lastgood");
+var tvText = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(tvBare.ConfigurationFilePath),
+    @"\s*<(EnableClientProfileList|EnableClientPinLogin|SkipQuickConnectOnKnownDevices)>[^<]*</\1>", "");
+File.WriteAllText(tvBare.ConfigurationFilePath, tvText);
+var tvOld = new Plugin(new StubPaths(tvNoElements), new RealXml());
+Ok("an upgrade from a file without them stays off",
+   !tvOld.Configuration.EnableClientProfileList && !tvOld.Configuration.EnableClientPinLogin
+   && !tvOld.Configuration.SkipQuickConnectOnKnownDevices);
+
 // BonfireOn arrived in 2.0, so a server that last saved under 1.7 has no element.
 var olderOn = NewDir();
 var olderWriter = new Plugin(new StubPaths(olderOn), new RealXml());

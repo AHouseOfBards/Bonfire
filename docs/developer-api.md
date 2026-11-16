@@ -880,7 +880,8 @@ placeholder tag that no item carries, so it sees nothing until it's edited.
 ## Sign-in from other apps
 
 These settings under **Apps** change Jellyfin's own routes, for apps that never load
-the web client. All are off by default.
+the web client. A new install turns on the PIN sign-in, the sign-in list and skipping
+Quick Connect; an upgrade keeps what it had. The rest are off by default.
 
 | Setting | What changes |
 | --- | --- |
