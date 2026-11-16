@@ -1528,6 +1528,63 @@
         }
       }
     },
+    "/devices/not-same": {
+      "post": {
+        "tags": [
+          "Devices"
+        ],
+        "summary": "Say two look-alike devices are different",
+        "operationId": "postDevicesNotSame",
+        "description": "The answer no to a device's `looksLike`: `deviceId` is not asked about `otherDeviceId` again. Must be the main account and own both devices. 400 if either is unknown, they are the same, or one is not the caller's.",
+        "x-bonfire-auth": "user",
+        "security": [
+          {
+            "MediaBrowser": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MasterPin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "otherDeviceId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "deviceId",
+                  "otherDeviceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "400": {
+            "$ref": "#/components/responses/Refused"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
     "/devices/merge-duplicates": {
       "post": {
         "tags": [

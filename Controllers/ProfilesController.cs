@@ -932,8 +932,10 @@ namespace Jellyfin.Profiles.Controllers
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                bool bypass = CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass,
-                    isTrusted: IsTrustedFor(mapping, remoteIp, config));
+                // An app set to ask every time is never skipped; it can only make this stricter.
+                bool bypass = !request.AlwaysAsk
+                    && CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass,
+                        isTrusted: IsTrustedFor(mapping, remoteIp, config));
 
                 if (bypass)
                 {
@@ -1213,8 +1215,8 @@ namespace Jellyfin.Profiles.Controllers
 
             var target = rules.Target;
             if (target != null && !string.IsNullOrEmpty(target.PinHash)
-                && !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass,
-                    isTrusted: IsTrustedFor(target, remoteIp, config)))
+                && (request.AlwaysAsk || !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass,
+                    isTrusted: IsTrustedFor(target, remoteIp, config))))
             {
                 var limited = BeginPinAttempt(rateLimitKey, request.ProfileId);
                 if (limited != null) return limited;
@@ -4236,6 +4238,8 @@ namespace Jellyfin.Profiles.Controllers
             List<KnownDevice> devices;
             lock (ConfigLock)
             {
+                var lookAlikes = Auth.DeviceRegistry.LookAlikes(config, masterUserId);
+
                 // Copied out under the lock before the names are touched: the scoping step
                 // synthesizes records for whitelisted devices no longer in the list, and
                 // DisambiguateDeviceNames writes to what it is handed. Renaming the live
@@ -4249,7 +4253,8 @@ namespace Jellyfin.Profiles.Controllers
                         Client = d.Client,
                         LastSeen = d.LastSeen,
                         MasterUserId = d.MasterUserId,
-                        NameIsCustom = d.NameIsCustom
+                        NameIsCustom = d.NameIsCustom,
+                        LooksLike = d.DeviceId != null && lookAlikes.TryGetValue(d.DeviceId, out var like) ? like : null
                     })
                     .ToList();
             }
@@ -4467,6 +4472,54 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Renames a device in the picker. The name sticks: see <c>KnownDevice.NameIsCustom</c>.
         /// </summary>
+        /// <summary>
+        /// The main account's answer to "Same device as X?" when it is no: this device is not asked
+        /// about that one again. Yes is <c>devices/merge</c>.
+        /// </summary>
+        [HttpPost("devices/not-same")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult NotSameDevice([FromBody] NotSameDeviceRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = FindMapping(masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can manage devices.");
+
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
+            if (string.IsNullOrWhiteSpace(request.DeviceId) || string.IsNullOrWhiteSpace(request.OtherDeviceId))
+                return BadRequest("Both devices are required.");
+
+            lock (ConfigLock)
+            {
+                var device = config.KnownDevices.FirstOrDefault(d =>
+                    string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase)
+                    && d.OwnedBy(masterId));
+                var other = config.KnownDevices.FirstOrDefault(d =>
+                    string.Equals(d.DeviceId, request.OtherDeviceId, StringComparison.OrdinalIgnoreCase)
+                    && d.OwnedBy(masterId));
+                if (device == null || other == null || device == other)
+                    return BadRequest("Both devices must be ones this account has used.");
+
+                if (!(device.NotSameAs ?? new List<string>()).Any(x => other.Answers(x)))
+                {
+                    var list = (device.NotSameAs ?? new List<string>()).Append(other.DeviceId).ToList();
+                    device.NotSameAs = list.Skip(Math.Max(0, list.Count - KnownDevice.MaxAliases)).ToList();
+                    Plugin.Instance?.SaveConfiguration();
+                }
+            }
+
+            return Ok();
+        }
+
         [HttpPost("devices/rename")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -5237,6 +5290,7 @@ namespace Jellyfin.Profiles.Controllers
                     ClientProfileList = config?.EnableClientProfileList == true,
                     SkipQuickConnectOnKnownDevices = config?.SkipQuickConnectOnKnownDevices == true,
                     ProfileThemes = config?.AllowProfileThemes != false,
+                    ClientThemes = config?.ClientThemes == true,
                     ProxyClients = config?.ProxyClients ?? new List<string>(),
                     RequireMainPin = config?.RequireMainPin == true,
                     Email = config != null && Features.Available(Features.Email, config),
@@ -5804,6 +5858,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.AllowProfileThemes = request.AllowProfileThemes.Value;
                 if (request.RichThemeMotion.HasValue)
                     config.RichThemeMotion = request.RichThemeMotion.Value;
+                if (request.ClientThemes.HasValue)
+                    config.ClientThemes = request.ClientThemes.Value;
 
                 // Two switches rather than one, because they carry different risks: the first
                 // changes how a profile authenticates, the second edits the endpoint every client

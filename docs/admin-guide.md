@@ -61,6 +61,7 @@ More in [Security](security.md).
 - **Server logo.** **Choose an image** (PNG, JPEG or WebP, up to 1 MB) or **Remove image**. With no image, the **Logo text** shows (up to 40 characters). Also **Logo corners** (Rounded or Square, default Rounded) and **Alt text** for screen readers (up to 100 characters). **Save text** saves the text fields.
 - **Themes.** The built-in themes can be hidden. **Your themes** lists custom ones. **New theme** opens the editor, and **Import** loads a theme file. Hiding and fonts save at once.
 - **Fonts.** Upload a WOFF2 file, up to 2 MB, with an optional **Font name** and a **Fallback** (Sans-serif or Serif). Tick **I have the right to use this font** first.
+- **Client themes.** **Use the theme on the app's own buttons and menus**, for apps with Bonfire built in. Off by default.
 
 The editor and the theme file format are in [Themes](themes.md).
 

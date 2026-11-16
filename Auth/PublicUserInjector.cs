@@ -170,6 +170,10 @@ namespace Jellyfin.Profiles.Auth
             // DeviceRegistry.ResolveSignInDevice.
             DeviceRegistry.NoteSignInScreen(deviceId);
 
+            // And kept on the record, so the set's per-account ids stay one device past that memory.
+            // Written once per television: after that the id is on record and this does nothing.
+            DeviceRegistry.KeepSignInScreenIdAndSave(deviceId);
+
             logger?.LogInformation(
                 "ProfilesPlugin: user list requested by device {DeviceId}; resolved via {Source} to the "
                 + "household of {MasterId} with {Count} member(s).",

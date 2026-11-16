@@ -68,6 +68,7 @@ async function run(fieldValues) {
         defaultTheme: 'bonfire',
         allowProfileThemes: true,
         richThemeMotion: false,
+        clientThemes: false,
         defaultTimeZone: '',
         // Both default off. A missing id throws in the stub below, so a control added to the
         // form without being added here fails instead of being silently omitted. That is why
@@ -211,6 +212,7 @@ const expected = [
     'defaultTheme',
     'allowProfileThemes',
     'richThemeMotion',
+    'clientThemes',
     'defaultTimeZone',
     'enableClientPinLogin',
     'enableClientProfileList',

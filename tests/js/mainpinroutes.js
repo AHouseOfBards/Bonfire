@@ -239,7 +239,9 @@ function clientCalls(r) {
 // something, or the check fails: an exemption nothing needs is a hole left open.
 const EXEMPT_ROUTES = {
     'account/verify-pin':
-        'it is the PIN check itself: the body carries the PIN being checked, as pin'
+        'it is the PIN check itself: the body carries the PIN being checked, as pin',
+    'devices/merge-duplicates':
+        'no Bonfire client calls it since Tidy up duplicates went (2026-11-15): the server merges by itself. Kept for other apps, and it still checks the header'
 };
 const EXEMPT_CALLS = [
     {

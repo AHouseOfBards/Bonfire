@@ -365,6 +365,15 @@ namespace Jellyfin.Profiles.Configuration
         /// </summary>
         public bool RichThemeMotion { get; set; }
 
+        /// <summary>
+        /// Lets an app with Bonfire built in dress its own controls (buttons, menus, focus) in the
+        /// profile's theme, reported to it as <c>features.clientThemes</c> in /info. Off by
+        /// default: an app keeps its own look until an administrator asks, and Bonfire's own
+        /// screens in that app (the picker, the PIN pad) use the theme either way. A setting, not
+        /// a limit: every value is safe, it only changes how an app looks.
+        /// </summary>
+        public bool ClientThemes { get; set; }
+
         // There used to be an IndexInjectionMode here, with "file" and "both" modes that rewrote
         // index.html on disk. Only the middleware remains, so the field is gone. A configuration saved
         // with it still loads (XmlSerializer skips an element it has no property for) and the next save
@@ -427,6 +436,21 @@ namespace Jellyfin.Profiles.Configuration
         [System.Xml.Serialization.XmlIgnore]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? ClientCode { get; set; }
+
+        /// <summary>
+        /// In <c>GET /devices</c> only: the id of a device a profile is allowed on that this one looks
+        /// like, so the main account can be asked whether they are the same
+        /// (Auth.DeviceRegistry.LookAlikes). Never stored.
+        /// </summary>
+        [System.Xml.Serialization.XmlIgnore]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? LooksLike { get; set; }
+
+        /// <summary>
+        /// Devices the main account said this one is not, so it is not asked again. Replaced, never
+        /// edited in place, like <see cref="Owners"/>.
+        /// </summary>
+        public List<string> NotSameAs { get; set; } = new List<string>();
 
         /// <summary>
         /// Master account this device was last seen on. Scopes the device picker so one household never

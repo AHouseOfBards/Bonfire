@@ -1952,6 +1952,8 @@ body.profiles-no-scroll [id*="spinner"] {
 }
 .jpf-no-flex-gap .jpf-viewing-split > * + *,
 .jpf-no-flex-gap .jpf-viewing-side > * + * { margin-top: 1.1rem; }
+/* "Same device as X?" and its two buttons, on the devices screen. */
+.jpf-no-flex-gap .jpf-device-lookalike > * { margin: 0 6px 6px 0 !important; }
 @media (min-width: 900px) {
     .jpf-viewing-split {
         display: grid;

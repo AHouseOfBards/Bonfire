@@ -399,6 +399,107 @@ Console.WriteLine("── One device that got a new id is one row ────�
         if (forgetScreens != null) forgetScreens.Invoke(null, null);
     }
 
+    // 1d. Owner decision, 2026-11-15: no Tidy up duplicates; one browser's copies merge by
+    //     themselves. jellyfin-web's id is base64(userAgent + "|" + time), so one browser on two
+    //     origins is two ids sharing a long prefix, both in use. Neither the time rule nor a
+    //     derivation joins those, which is what the button was for.
+    {
+        string WebId(string ua, long ms) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(ua + "|" + ms));
+        const string Ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
+        const string Web = "Jellyfin Web";
+
+        // A browser is on the list at all. The cap was 128 from 1.9.0.2, and a real browser's id
+        // is longer, so no browser was ever recorded.
+        {
+            var hb = Household(1);
+            var uas = new[] {
+                Ua,
+                Ua + " Edg/142.0.0.0",
+                "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
+                "Mozilla/5.0 (Linux; Android 15; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36",
+                "Mozilla/5.0 (SMART-TV; LINUX; Tizen 8.0) AppleWebKit/537.36 (KHTML, like Gecko) 120.0.6099.5/8.0 TV Safari/537.36",
+            };
+            for (var u = 0; u < uas.Length; u++)
+                See(hb.Cfg, WebId(uas[u], 1760000000000 + u), "Browser " + u, Web, hb.Master, t0);
+            Ok("a real browser's id is recorded, desktop, phone and television (" + hb.List.Count + " of " + uas.Length + ")",
+               hb.List.Count == uas.Length);
+        }
+
+        var h = Household(1);
+        var lan = WebId(Ua, 1760000000000);
+        var domain = WebId(Ua, 1761000000000);
+        See(h.Cfg, lan, "Chrome", Web, h.Master, t0);
+        See(h.Cfg, domain, "Chrome", Web, h.Master, t0.AddHours(1));
+        See(h.Cfg, lan, "Chrome", Web, h.Master, t0.AddHours(2));
+        Merge(h.Cfg, h.Master, t0.AddHours(3));
+        Ok("one browser on two addresses, both in use, is one row without anyone pressing a button (" + h.List.Count + ")",
+           h.List.Count == 1);
+        Ok("and no alias is kept for the other id: it is a guess (R2-02-01)",
+           h.List.Count == 1 && !(Answers(h.List, lan) && Answers(h.List, domain)));
+
+        // Another browser version is another machine as far as the id can tell.
+        var h2 = Household(1);
+        See(h2.Cfg, WebId(Ua, 1760000000000), "Chrome", Web, h2.Master, t0);
+        See(h2.Cfg, WebId(Ua.Replace("Windows NT 10.0", "Macintosh; Intel"), 1761000000000), "Chrome", Web, h2.Master, t0.AddHours(1));
+        Merge(h2.Cfg, h2.Master, t0.AddHours(3));
+        Ok("two different browsers named Chrome stay two rows (" + h2.List.Count + ")", h2.List.Count == 2);
+
+        // Never a row a profile is limited to: two people's identical laptops would match too.
+        var h3 = Household(1);
+        var allow3 = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h3.Cfg))[0]);
+        var kid = WebId(Ua, 1760000000000);
+        See(h3.Cfg, kid, "Chrome", Web, h3.Master, t0);
+        allow3.Add(kid);
+        See(h3.Cfg, WebId(Ua, 1761000000000), "Chrome", Web, h3.Master, t0.AddHours(1));
+        Merge(h3.Cfg, h3.Master, t0.AddHours(3));
+        Ok("an allow-listed browser is not joined to a look-alike (" + h3.List.Count + ")", h3.List.Count == 2);
+
+        // 1e. Owner decision, 2026-11-15: a newcomer that looks like an allowed device is asked about
+        //     ("Same device as Family Room TV?"), since the guesses above may not merge it.
+        {
+            var lookAlikes = registry.GetMethod("LookAlikes", Any);
+            Dictionary<string, string> Like(object cfg, Guid household)
+                => lookAlikes == null ? new Dictionary<string, string>()
+                    : (Dictionary<string, string>)lookAlikes.Invoke(null, new object[] { cfg, household });
+
+            var hl = Household(1);
+            var allowL = (IList)mappingType.GetProperty("AllowedDeviceIds")
+                .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(hl.Cfg))[0]);
+            See(hl.Cfg, "real-tv-0001", "Family Room TV", TV, hl.Master, t0);
+            allowL.Add("real-tv-0001");
+            See(hl.Cfg, "reset-tv-0002", "Family Room TV", TV, hl.Master, t0.AddDays(1));
+            var asked = Like(hl.Cfg, hl.Master);
+            Ok("a television with a new id is asked about the allowed one, the day it appears",
+               asked.TryGetValue("reset-tv-0002", out var into) && into == "real-tv-0001");
+            Ok("and the allowed one is not asked about itself", !asked.ContainsKey("real-tv-0001"));
+
+            // Both in use: by time it is no look-alike, two devices.
+            See(hl.Cfg, "real-tv-0001", "Family Room TV", TV, hl.Master, t0.AddDays(2));
+            Ok("not while the allowed one is still in use", !Like(hl.Cfg, hl.Master).ContainsKey("reset-tv-0002"));
+
+            // One browser side by side is asked about while both are in use.
+            var hb = Household(1);
+            var allowB = (IList)mappingType.GetProperty("AllowedDeviceIds")
+                .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(hb.Cfg))[0]);
+            var lanId = WebId(Ua, 1760000000000);
+            var domainId = WebId(Ua, 1761000000000);
+            See(hb.Cfg, lanId, "Chrome", Web, hb.Master, t0);
+            allowB.Add(lanId);
+            See(hb.Cfg, domainId, "Chrome", Web, hb.Master, t0.AddHours(1));
+            See(hb.Cfg, lanId, "Chrome", Web, hb.Master, t0.AddHours(2));
+            Ok("one browser at a second address is asked about its allowed copy",
+               Like(hb.Cfg, hb.Master).TryGetValue(domainId, out var bInto) && bInto == lanId);
+
+            // No: asked once.
+            var row = ((IList)hb.List).Cast<object>().FirstOrDefault(d => (string)deviceType.GetProperty("DeviceId").GetValue(d) == domainId);
+            var notSame = deviceType.GetProperty("NotSameAs");
+            if (row != null) notSame?.SetValue(row, new List<string> { lanId });
+            Ok("and not again once the main account said it is a different one",
+               row != null && notSame != null && !Like(hb.Cfg, hb.Master).ContainsKey(domainId));
+        }
+    }
+
     // 1c. R2-02-02: a household at its row cap gives up its oldest unlisted row for a new device
     //     instead of refusing it; an allow-listed row is never the one to go.
     {
@@ -438,6 +539,64 @@ Console.WriteLine("── One device that got a new id is one row ────�
         if (forgetScreens != null) forgetScreens.Invoke(null, null);
     }
 
+    // 2b. The owner, 2026-11-15: "4 different android tv ids would screw anyone with device
+    //     restrictions based on the tv". The set's own id was only remembered for 12 hours in
+    //     memory, so after a restart a profile limited to the television's row was refused once
+    //     another account signed in on it. The sign-in screen's id is kept on the record now.
+    {
+        var keep = registry.GetMethod("KeepSignInScreenId", Any);
+        var evaluate = baseCtl.GetMethod("EvaluateDeviceRestriction", Any);
+        bool Keep(object cfg, string id, DateTime at)
+            => keep != null && (bool)keep.Invoke(null, new object[] { cfg, id, at });
+        string Access(object cfg, int profile, string id)
+        {
+            var maps = (IList)cfgType.GetProperty("Mappings").GetValue(cfg);
+            return evaluate.Invoke(null, new object[] { maps[profile], id,
+                cfgType.GetProperty("KnownDevices").GetValue(cfg), maps }).ToString();
+        }
+
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+        var h = Household(2);
+        const string bare = "7c41e2a90b3d5f68";
+        See(h.Cfg, Sha1(bare + "+" + h.Master), "Family Room TV", TV, h.Master, t0);
+        var allow = (IList)mappingType.GetProperty("AllowedDeviceIds")
+            .GetValue(((IList)cfgType.GetProperty("Mappings").GetValue(h.Cfg))[1]);
+        allow.Add(Sha1(bare + "+" + h.Master));
+
+        // The sign-in screen asks with the set's own id, and then the server restarts.
+        Ok("a sign-in screen's own id is kept on the television's record", Keep(h.Cfg, bare, t0.AddHours(1)));
+        Ok("and kept once: asking again changes nothing", !Keep(h.Cfg, bare, t0.AddHours(2)));
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+
+        // Two other accounts sign in on the set, each under its own id.
+        See(h.Cfg, Sha1(bare + "+" + h.Profiles[0]), "Family Room TV", TV, h.Master, t0.AddDays(2));
+        See(h.Cfg, Sha1(bare + "+" + h.Profiles[1]), "Family Room TV", TV, h.Master, t0.AddDays(2).AddMinutes(5));
+        Ok("one television under three accounts is one row after a restart (" + h.List.Count + ")",
+           h.List.Count == 1);
+        Ok("a profile limited to the television is let in under its own id (" + Access(h.Cfg, 1, Sha1(bare + "+" + h.Profiles[1])) + ")",
+           Access(h.Cfg, 1, Sha1(bare + "+" + h.Profiles[1])) == "Allowed");
+        Ok("and from the sign-in screen (" + Access(h.Cfg, 1, bare) + ")", Access(h.Cfg, 1, bare) == "Allowed");
+        Ok("and a different television is still refused", Access(h.Cfg, 1, Sha1("0000111122223333+" + h.Profiles[1])) != "Allowed");
+
+        // A television two households use: kept for neither, and whoever used it last owns the screen.
+        if (forgetScreens != null) forgetScreens.Invoke(null, null);
+        var s2 = Household(1);
+        var other = Guid.NewGuid();
+        var otherKid = Guid.NewGuid();
+        var m2 = Activator.CreateInstance(mappingType);
+        mappingType.GetProperty("MasterUserId").SetValue(m2, other);
+        mappingType.GetProperty("ProfileUserId").SetValue(m2, otherKid);
+        mappingType.GetProperty("ProfileName").SetValue(m2, "Other kid");
+        ((IList)cfgType.GetProperty("Mappings").GetValue(s2.Cfg)).Add(m2);
+        const string shared = "5e5e5e5e12121212";
+        See(s2.Cfg, Sha1(shared + "+" + s2.Master), "Den TV", TV, s2.Master, t0);
+        See(s2.Cfg, Sha1(shared + "+" + other), "Den TV", TV, other, t0.AddHours(1));
+        Ok("a television two households use keeps its own id for neither", !Keep(s2.Cfg, shared, t0.AddHours(2)));
+        var findMaster = registry.GetMethod("FindMaster", Any);
+        Ok("and its sign-in screen goes to whoever used it last",
+           (Guid)findMaster.Invoke(null, new object[] { s2.Cfg, shared }) == other);
+    }
+
     // 3. The second screenshot's Pixel 8: Jellyfin for Android's own id, and the same id with
     //    the account appended, used side by side.
     {
@@ -449,6 +608,26 @@ Console.WriteLine("── One device that got a new id is one row ────�
         Merge(h.Cfg, h.Master, t0.AddMinutes(3));
         Ok("a phone's own id and its id with the account appended are one row (" + h.List.Count + ")",
            h.List.Count == 1 && Answers(h.List, bare) && Answers(h.List, bare + h.Master));
+    }
+
+    // 3a. The same phone under the app's old and new names. The owner's list had the Pixel 8 twice,
+    //     "Jellyfin for Android" and "Jellyfin Android", and the rule wanted the app to match exactly.
+    {
+        var h = Household(1);
+        const string bare = "6044d6840404e4e9";
+        See(h.Cfg, bare, "Pixel 8", "Jellyfin for Android", h.Master, t0);
+        See(h.Cfg, bare + h.Master, "Pixel 8", "Jellyfin Android", h.Master, t0.AddMinutes(1));
+        See(h.Cfg, bare, "Pixel 8", "Jellyfin for Android", h.Master, t0.AddMinutes(2));
+        Merge(h.Cfg, h.Master, t0.AddMinutes(3));
+        Ok("one phone under the app's old and new names is one row (" + h.List.Count + ")", h.List.Count == 1);
+
+        var h2 = Household(1);
+        const string tv = "6044d6840404e4ea";
+        See(h2.Cfg, tv, "Shield", "Jellyfin Android", h2.Master, t0);
+        See(h2.Cfg, tv + h2.Master, "Shield", "Jellyfin Android TV", h2.Master, t0.AddMinutes(1));
+        See(h2.Cfg, tv, "Shield", "Jellyfin Android", h2.Master, t0.AddMinutes(2));
+        Merge(h2.Cfg, h2.Master, t0.AddMinutes(3));
+        Ok("Jellyfin Android and Jellyfin Android TV are still two apps (" + h2.List.Count + ")", h2.List.Count == 2);
     }
 
     // 3b. The set's own id folded in as an alias is still what a sign-in by name is traced to.

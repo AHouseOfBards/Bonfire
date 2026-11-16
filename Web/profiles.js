@@ -1316,9 +1316,9 @@
         'profileForm.mergeDeviceAria': 'Mark {name} as the same device as another',
         'profileForm.mergeDeviceTitle': 'Same device?',
         'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
-        'profileForm.tidyDevices': 'Tidy up duplicates',
-        'profileForm.tidyNone': 'No duplicates found.',
-        'profileForm.tidyFound': 'Possible duplicates: {count}. Merge them?',
+        'profileForm.lookAlike': 'Same device as {name}?',
+        'profileForm.lookAlikeSame': 'Same',
+        'profileForm.lookAlikeDifferent': 'Different',
         'profileForm.maximumRating': 'Rating limit',
         'profileForm.noRestrictions': 'No limit',
         'profileForm.ratingG': 'G / TV-G (6+)',
@@ -10677,11 +10677,21 @@
                 // Year 1 is an unset DateTime; see renderDeviceDropdown.
                 const seenStr = (seenDate && seenDate.getFullYear() > 1)
                     ? seenDate.toLocaleDateString() : t('profileForm.unknown');
+                // A device that looks like one a profile is allowed on (GET /devices, looksLike).
+                // The server will not merge those on a guess, so the main account is asked here.
+                const likeId = dev.looksLike || dev.LooksLike || '';
+                const like = likeId && (devices || []).find(d => (d.deviceId || d.DeviceId) === likeId);
+                const ask = like ? `
+                            <span class="jpf-device-lookalike" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.85rem;">
+                                <span>${t('profileForm.lookAlike', { name: escapeHtml(deviceListName(like)) })}</span>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-same-btn" data-id="${escapeHtml(id)}" data-into="${escapeHtml(likeId)}" style="padding: 2px 12px !important; margin: 0 !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeSame')}</button>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-different-btn" data-id="${escapeHtml(id)}" data-other="${escapeHtml(likeId)}" style="padding: 2px 12px !important; margin: 0 !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeDifferent')}</button>
+                            </span>` : '';
                 return `
                     <div class="jpf-device-dropdown-item" data-device-id="${escapeHtml(id)}" data-device-detail="${escapeHtml(t('profileForm.deviceLastSeen', { client: client, date: seenStr }))}">
                         <span style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                             <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
-                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
+                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>${ask}
                         </span>
                         <button type="button" class="jpf-device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${escapeHtml(t('profileForm.renameDevice'))}" aria-label="${escapeHtml(t('profileForm.renameDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">edit</span></button>
                         <button type="button" class="jpf-device-merge-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.mergeDevice'))}" aria-label="${escapeHtml(t('profileForm.mergeDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
@@ -10693,8 +10703,7 @@
                 : !devices.length
                     ? `<div class="jpf-form-hint">${t('profileForm.noDevicesYet')}</div>`
                     : `<div class="jpf-device-list">${devices.map(deviceRow).join('')}</div>
-                       <div class="jpf-form-hint">${t('account.devicesHint')}</div>
-                       <button type="button" id="devices-tidy-btn" class="profiles-btn jpf-btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>`;
+                       <div class="jpf-form-hint">${t('account.devicesHint')}</div>`;
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('account.devicesTitle')}</h1>
@@ -10951,38 +10960,28 @@
                 });
             });
 
-            // A browser that mints a new id every time its site data is cleared leaves four or
-            // five identical rows, and merging a pair at a time is a chore nobody finishes.
-            // Two calls: the first only reports, the second acts.
-            const tidyBtn = content.querySelector('#devices-tidy-btn');
-            if (tidyBtn) {
-                tidyBtn.addEventListener('click', (e) => {
+            // "Same device as X?": yes merges this one into the allowed one, so the profile's list
+            // keeps the id it already names; no tells the server not to ask about that pair again.
+            content.querySelectorAll('.jpf-device-same-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    fetch(apiClient.getUrl('plugins/profiles/devices/merge-duplicates'), {
-                        method: 'POST',
-                        headers: this.manageHeaders(masterState.token)
-                    })
-                    .then(res => {
-                        this.checked(res);
-                        if (!res.ok) throw refusalError(res, t('errors.generic'));
-                        return res.json();
-                    })
-                    .then(data => {
-                        const count = (data.groups || [])
-                            .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
-                        if (!count) {
-                            this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
-                            return;
-                        }
-                        this.showConfirmDialog(
-                            t('profileForm.tidyDevices'),
-                            t('profileForm.tidyFound', { count: count }),
-                            () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
-                    })
-                    .catch(err => this.showAlert(t('errors.error'),
-                        this._failText(err, t('errors.generic'))));
+                    deviceAction('merge',
+                        { fromDeviceId: btn.getAttribute('data-id'), intoDeviceId: btn.getAttribute('data-into') },
+                        'errors.failedMergeDevice');
                 });
-            }
+            });
+            content.querySelectorAll('.jpf-device-different-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    deviceAction('not-same',
+                        { deviceId: btn.getAttribute('data-id'), otherDeviceId: btn.getAttribute('data-other') },
+                        'errors.generic');
+                });
+            });
+
+            // No Tidy up duplicates (2026-11-15): one browser's copies merge on the server by
+            // themselves (Auth.DeviceRegistry.MergeSameDevices), as a reinstalled TV's do. A button
+            // that has to be pressed was pressed by nobody, and the list filled with copies.
         },
 
         /// "Skip the PIN on my home network" only applies to a household the server has seen

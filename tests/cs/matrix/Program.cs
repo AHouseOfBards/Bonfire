@@ -576,7 +576,7 @@ if (normIds != null)
     var trimmed = Norm(new[] { " tv-1 ", "tv-1", "", "  ", "phone" });
     Check("ids are trimmed and repeats and blanks dropped", string.Join("|", trimmed.Ids ?? new System.Collections.Generic.List<string>()), "tv-1|phone");
     Check("no list stays none", Norm(null).Ids == null, true);
-    Check("an id over 128 characters is refused", Norm(new[] { new string('a', 129) }).Error != null, true);
+    Check("an id over the longest recorded (512) is refused", Norm(new[] { new string('a', 513) }).Error != null, true);
     Check("200 devices are taken", Norm(Enumerable.Range(0, 200).Select(i => "d" + i)).Error == null, true);
     Check("201 devices are refused", Norm(Enumerable.Range(0, 201).Select(i => "d" + i)).Error != null, true);
 }

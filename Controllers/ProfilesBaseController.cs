@@ -1848,26 +1848,23 @@ namespace Jellyfin.Profiles.Controllers
         /// same client and reported name, that is as good as client-supplied data gets.
         /// </para>
         /// <para>
-        /// Still only a suggestion; nothing here merges on its own. These are ids in use side by
-        /// side (two origins, two browser profiles), which Auth.DeviceRegistry.MergeSameDevices
-        /// leaves apart. Cleared site data is an old id gone silent, and that one merges
-        /// automatically. Two people with the same phone model and browser version would share a
-        /// group, and merging them would widen a whitelist, which device housekeeping must never do
-        /// alone. Grouping is scoped to one household, and then a person confirms.
+        /// Only for <c>devices/merge-duplicates</c>, which no Bonfire client calls since Tidy up
+        /// duplicates went (2026-11-15): Auth.DeviceRegistry.MergeSameDevices now merges these on
+        /// its own, except a row on an allow list. Two people with the same phone model and browser
+        /// version would share a group, and merging them would widen a whitelist, which device
+        /// housekeeping must never do alone. This route merges allow-listed rows too, because a
+        /// person asked for it.
         /// </para>
         /// </summary>
         internal static List<List<KnownDevice>> GroupLikelyDuplicates(IEnumerable<KnownDevice> devices)
         {
-            // Long enough to rule out base64 alignment coincidence: 32 characters is 24 bytes of user
-            // agent, well past "Mozilla/5.0 (" and into the platform.
-            const int MinSharedPrefix = 32;
+            const int MinSharedPrefix = SameBrowserPrefix;
 
             var groups = new List<List<KnownDevice>>();
 
             foreach (var byName in devices
                 .Where(d => !string.IsNullOrEmpty(d.DeviceId))
-                .GroupBy(d => (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant()
-                              + "\0" + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
+                .GroupBy(SameDeviceLabel))
             {
                 var candidates = byName.OrderByDescending(d => d.LastSeen).ToList();
                 if (candidates.Count < 2) continue;
@@ -1895,6 +1892,36 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return groups;
+        }
+
+        /// <summary>
+        /// Long enough to rule out base64 alignment coincidence: 32 characters is 24 bytes of user
+        /// agent, well past "Mozilla/5.0 (" and into the platform.
+        /// </summary>
+        internal const int SameBrowserPrefix = 32;
+
+        /// <summary>
+        /// Whether two device ids are one browser's: jellyfin-web ids sharing at least
+        /// <see cref="SameBrowserPrefix"/> characters, so byte-identical user agents. See
+        /// <see cref="GroupLikelyDuplicates"/>.
+        /// </summary>
+        internal static bool SameBrowserIds(string? a, string? b)
+            => !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b)
+               && !string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+               && FirstDifferingIndex(new[] { a!, b! }) >= SameBrowserPrefix;
+
+        /// <summary>
+        /// The name and app two records must share to be one device: the name as typed, ignoring case,
+        /// and the app by its words. Apps rename themselves between versions, and one phone was two rows
+        /// as "Jellyfin for Android" and "Jellyfin Android". "for" is dropped, and anything that is not
+        /// a letter or digit splits words; "Jellyfin Android TV" stays another app.
+        /// </summary>
+        internal static string SameDeviceLabel(KnownDevice d)
+        {
+            var words = System.Text.RegularExpressions.Regex
+                .Split((d.Client ?? string.Empty).ToLowerInvariant(), "[^\\p{L}\\p{N}]+")
+                .Where(w => w.Length > 0 && w != "for");
+            return (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant() + "\0" + string.Join(" ", words);
         }
 
         /// <summary>Names that carry no information, and so must never suppress a fallback.</summary>
@@ -1927,6 +1954,7 @@ namespace Jellyfin.Profiles.Controllers
                 LastSeen = d.LastSeen,
                 MasterUserId = d.MasterUserId,
                 NameIsCustom = d.NameIsCustom,
+                LooksLike = d.LooksLike,
                 Owners = new List<Guid>(d.Owners ?? new List<Guid>())
             }).ToList();
 

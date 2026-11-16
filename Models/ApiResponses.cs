@@ -34,6 +34,9 @@ namespace Jellyfin.Profiles.Models
         public bool ClientProfileList { get; set; }
         public bool SkipQuickConnectOnKnownDevices { get; set; }
         public bool ProfileThemes { get; set; }
+
+        /// <summary>An app with Bonfire built in may theme its own controls.</summary>
+        public bool ClientThemes { get; set; }
         public List<string> ProxyClients { get; set; } = new List<string>();
         public bool RequireMainPin { get; set; }
 

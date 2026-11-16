@@ -125,7 +125,9 @@ using (var w = new StringWriter()) { serializer.Serialize(w, before); xml = w.To
 var old = System.Xml.Linq.XDocument.Parse(xml);
 old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme" or "RichThemeMotion"
        // 1.7.2's lists did not exist then either.
-       or "CustomThemes" or "HiddenThemes" or "CustomFonts").ToList()
+       or "CustomThemes" or "HiddenThemes" or "CustomFonts"
+       // 2.0.1's client themes switch neither.
+       or "ClientThemes").ToList()
    .ForEach(e => e.Remove());
 Ok("the old document really has no theme elements",
    !old.Descendants().Any(e => e.Name.LocalName.Contains("Theme")));

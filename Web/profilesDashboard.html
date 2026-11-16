@@ -1551,6 +1551,18 @@
                     <div class="fieldDescription" data-i18n="admin.themes.fontFormatHint">WOFF2, up to 2 MB.</div>
                     <div class="jpf-hidden jpf-status" id="fontResult"></div>
                 </div>
+
+                <!-- Apps with Bonfire built in (2.0.1): whether they wear the profile's theme on
+                     their own controls, read as features.clientThemes in /info. Off by default and
+                     under Advanced, because most servers have no such app and it changes how one
+                     looks. A second fold here failed admintabs: a tab has one Advanced fold. -->
+                <h3 class="checkboxListLabel jpf-subhead" id="jpfClientThemes" data-i18n="admin.clientThemes.title">Client themes</h3>
+                <div class="checkboxContainer">
+                    <label>
+                        <input is="emby-checkbox" type="checkbox" id="clientThemes" />
+                        <span data-i18n="admin.clientThemes.enable">Use the theme on the app's own buttons and menus</span>
+                    </label>
+                </div>
                 </details>
             </div><!-- /look -->
 
@@ -2849,6 +2861,7 @@
                     if (page._themes) renderDefaultThemePreview(page);
                     page.querySelector('#allowProfileThemes').checked = config.AllowProfileThemes !== false;
                     page.querySelector('#richThemeMotion').checked = !!config.RichThemeMotion;
+                    page.querySelector('#clientThemes').checked = !!config.ClientThemes;
                     loadTimeZones(page, config.DefaultTimeZone || '');
                     loadOnboarding(page, config.Onboarding || {});
                     // Absent before 1.6.1.2; both default to off, so neither switches itself on for an
@@ -9196,6 +9209,7 @@
                 c.EnablePinResetByEmail = sent.enablePinResetByEmail;
                 c.EnableStarterAvatars = sent.enableStarterAvatars;
                 c.RichThemeMotion = sent.richThemeMotion;
+                c.ClientThemes = sent.clientThemes;
                 c.EnableClientPinLogin = sent.enableClientPinLogin;
                 c.EnableClientProfileList = sent.enableClientProfileList;
                 c.ClientPinLoginFromAnywhere = sent.clientPinLoginFromAnywhere;
@@ -9284,7 +9298,7 @@
                         'Profile picker apps: ' + ((c.ProxyClients || []).join(', ') || 'none'),
                         'Ask on startup: ' + on(c.DefaultAskOnStartup !== false) + ', switch from: ' + (c.DefaultSwitcherLocation || 'button'),
                         'Theme: ' + (c.DefaultTheme || 'bonfire') + ', profiles choose: ' + on(c.AllowProfileThemes !== false)
-                            + ', richer motion: ' + on(c.RichThemeMotion),
+                            + ', richer motion: ' + on(c.RichThemeMotion) + ', client themes: ' + on(c.ClientThemes),
                         'Maintenance: ' + ((page._status && (page._status.maintenance || []).length) ? 'closed' : 'open'),
                         'Emergency code: ' + (page._panicConfigured === undefined ? 'unknown' : page._panicConfigured ? 'set' : 'not set'),
                     ];
@@ -9404,7 +9418,7 @@
             // only what Save sends is.
             const SAVED_FIELD_IDS = ['maxProfiles', 'pinGuessesPerDay', 'requireMainPin', 'enablePinResetByEmail',
                 'disallowCustomAvatars', 'enableStarterAvatars', 'defaultAskOnStartup', 'defaultSwitcherLocation',
-                'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'defaultTimeZone', 'enableClientPinLogin',
+                'defaultTheme', 'allowProfileThemes', 'richThemeMotion', 'clientThemes', 'defaultTimeZone', 'enableClientPinLogin',
                 'enableClientProfileList', 'clientPinLoginFromAnywhere', 'clientNoPinHomeOnly', 'skipQuickConnectOnKnownDevices',
                 'profileImageQuality', 'onboardingEnabled'];
             const SAVED_FIELD_CLASSES = ['jpfProxyClient', 'jpfTrusted'];
@@ -9485,6 +9499,7 @@
                     defaultTheme: normalizeTheme(page.querySelector('#defaultTheme').value || page._wantedDefaultTheme, page._themeOffered),
                     allowProfileThemes: page.querySelector('#allowProfileThemes').checked,
                     richThemeMotion: page.querySelector('#richThemeMotion').checked,
+                    clientThemes: page.querySelector('#clientThemes').checked,
                     defaultTimeZone: page.querySelector('#defaultTimeZone').value,
                     enableClientPinLogin: page.querySelector('#enableClientPinLogin').checked,
                     enableClientProfileList: page.querySelector('#enableClientProfileList').checked,

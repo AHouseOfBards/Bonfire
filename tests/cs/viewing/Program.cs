@@ -494,6 +494,25 @@ Ok("a save that does not mention it leaves it on", r.status == 200 && (bool)moti
 r = Call("UpdateAdminSettings", ADMIN, B(("RichThemeMotion", false)));
 Ok("and it can be turned off again", r.status == 200 && !(bool)motion.GetValue(config), r.status + " " + r.value);
 
+// Client themes (2.0.1): off by default, so an app keeps its own look until an administrator
+// asks; reported to apps as features.clientThemes in /info.
+var clientThemes = cfgType.GetProperty("ClientThemes");
+Ok("client themes exist and start off", clientThemes != null && !(bool)clientThemes.GetValue(Activator.CreateInstance(cfgType)));
+bool InfoSaysClientThemes()
+{
+    var info = Call("GetInfo", Guid.Empty);
+    return info.status == 200 && System.Text.Json.JsonSerializer.Serialize(info.value).Contains("\"ClientThemes\":true");
+}
+Ok("and /info says so", clientThemes != null && !InfoSaysClientThemes());
+r = Call("UpdateAdminSettings", MAIN, B(("ClientThemes", true)));
+Ok("someone who is not an administrator cannot turn them on", r.status == 401 && clientThemes != null && !(bool)clientThemes.GetValue(config), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("ClientThemes", true)));
+Ok("an administrator can, and /info says so", r.status == 200 && clientThemes != null && (bool)clientThemes.GetValue(config) && InfoSaysClientThemes(), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("DefaultTimeZone", "Europe/London")));
+Ok("a save that does not mention them leaves them on", r.status == 200 && clientThemes != null && (bool)clientThemes.GetValue(config), r.status + " " + r.value);
+r = Call("UpdateAdminSettings", ADMIN, B(("ClientThemes", false)));
+Ok("and they can be turned off again", r.status == 200 && clientThemes != null && !(bool)clientThemes.GetValue(config) && !InfoSaysClientThemes(), r.status + " " + r.value);
+
 // ── More time ────────────────────────────────────────────────────────────────
 Section("More time");
 

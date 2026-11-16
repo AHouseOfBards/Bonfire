@@ -38,6 +38,7 @@ PP.handleSessionExpired = () => {};
 
 const realSettings = PP.showSettingsMenu;
 const realAccount = PP.showAccountSettings;
+const realDevices = PP.showAccountDevices;
 const DEVICES = [
     { deviceId: 'tv-1', deviceName: 'TV', client: 'Jellyfin Web', lastSeen: '2026-10-01T00:00:00Z' },
     { deviceId: 'tv-2', deviceName: 'TV (domain)', client: 'Jellyfin Web', lastSeen: '2026-10-02T00:00:00Z' }
@@ -118,7 +119,8 @@ function freshAccount() {
             && content.querySelectorAll('.jpf-device-rename-btn').length === 2
             && content.querySelectorAll('.jpf-device-merge-btn').length === 2
             && content.querySelectorAll('.jpf-device-delete-btn').length === 2);
-        ok('and Tidy up duplicates', /id="devices-tidy-btn"/.test(content.innerHTML));
+        // Gone 2026-11-15: one browser's copies merge on the server by themselves.
+        ok('and no Tidy up duplicates', !/devices-tidy-btn|merge-duplicates/.test(content.innerHTML + SRC));
         PP.showAccountSettings();
         await settle();
         ok('a remote\'s Back key leaves it',
@@ -225,17 +227,33 @@ function freshAccount() {
         ok('and posts the pair', dev('merge').length === 1
             && JSON.stringify(dev('merge')[0].body) === JSON.stringify({ fromDeviceId: 'tv-2', intoDeviceId: 'tv-1' }));
 
-        posts.length = 0;
-        respond = (url) => url === 'plugins/profiles/devices/merge-duplicates'
-            ? { status: 200, body: { groups: [{ keep: 'tv-1', merge: ['tv-2'] }] } }
-            : { status: 200, body: {} };
-        content.querySelector('#devices-tidy-btn').click();
+        // 2026-11-15: a device that looks like one a profile is allowed on is asked about, never
+        // merged on a guess. Same merges it into the allowed one; Different says not to ask again.
+        PP.fetchSharedFormData = () => Promise.resolve({ devices: [DEVICES[0], Object.assign({}, DEVICES[1], { looksLike: 'tv-1' })] });
+        PP.showAccountDevices = realDevices;
+        PP.showAccountDevices();
         await settle();
-        ok('Tidy looks first, then merges once asked',
-            dev('merge-duplicates').length === 1 && dev('merge-duplicates?apply=true').length === 1
-            && dev('merge-duplicates?apply=true')[0].init.body === undefined);
+        PP.showAccountDevices = () => { redraws++; };
+        const askRow = content.querySelector('.jpf-device-lookalike');
+        ok('a look-alike asks "Same device as TV?" on its own row only',
+            content.querySelectorAll('.jpf-device-lookalike').length === 1 && askRow
+            && content.innerHTML.split("Same device as TV?").length === 2);
+        posts.length = 0;
+        const sameBtn = content.querySelector('.jpf-device-same-btn');
+        if (sameBtn) sameBtn.click();
+        await settle();
+        ok('Same merges it into the allowed device', dev('merge').length === 1
+            && JSON.stringify(dev('merge')[0].body) === JSON.stringify({ fromDeviceId: 'tv-2', intoDeviceId: 'tv-1' }));
+        const diffBtn = content.querySelector('.jpf-device-different-btn');
+        if (diffBtn) diffBtn.click();
+        await settle();
+        ok('Different tells the server not to ask again', dev('not-same').length === 1
+            && JSON.stringify(dev('not-same')[0].body) === JSON.stringify({ deviceId: 'tv-2', otherDeviceId: 'tv-1' }));
+        PP.fetchSharedFormData = () => Promise.resolve({ devices: DEVICES });
+
         ok('and every device call carries the main PIN in its header',
-            posts.filter(p => /devices\//.test(p.url)).every(p => p.init.headers && p.init.headers['X-Bonfire-Master-Pin'] === '2468'));
+            posts.filter(p => /devices\//.test(p.url)).length > 0
+            && posts.filter(p => /devices\//.test(p.url)).every(p => p.init.headers && p.init.headers['X-Bonfire-Master-Pin'] === '2468'));
 
         PP.showAccountSettings = realAccount;
         // The device list is its own screen now, so go back to the account page first.

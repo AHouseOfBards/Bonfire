@@ -377,6 +377,8 @@ if (info != null)
         "Name", "Version", "ApiVersion", "Disabled", "Features",
         "Features.ClientPinLogin", "Features.ClientProfileList", "Features.SkipQuickConnectOnKnownDevices",
         "Features.ProfileThemes", "Features.ProxyClients",
+        // Whether an app may dress its own controls in the profile's theme (2.0.1).
+        "Features.ClientThemes",
         // A server-wide setting, so a client knows to ask for a main PIN to be set.
         "Features.RequireMainPin",
         // Whether the server can send mail, and whether a forgotten main PIN can be reset

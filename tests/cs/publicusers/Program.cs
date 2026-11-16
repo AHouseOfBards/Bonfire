@@ -544,7 +544,7 @@ if (resolve != null)
 
         // Bounded: an id no client would send, and rows past a household's or the server's cap.
         devicesList.Clear();
-        record.Invoke(null, new object[] { config, new string('x', 129), "TV", "Android TV", MASTER, now, null });
+        record.Invoke(null, new object[] { config, new string('x', 513), "TV", "Android TV", MASTER, now, null });
         Ok("an over-long device id is not recorded", devicesList.Count == 0);
         for (var i = 0; i < 250; i++)
             record.Invoke(null, new object[] { config, "cap-" + i, "TV", "Android TV", MASTER, now, null });
@@ -1177,6 +1177,24 @@ Ok("the panic flag is reachable", panicField != null);
 var ownUser = mw.GetMethod("IsOwnUserPath", BindingFlags.Static | BindingFlags.NonPublic);
 var publicUsers = mw.GetMethod("IsPublicUsersPath", BindingFlags.Static | BindingFlags.NonPublic);
 Ok("both predicates exist", ownUser != null && publicUsers != null);
+
+// Issue #46: a sign-in list left alone said nothing in the log, so "no user list requested
+// line" could not be told from "the request never arrived". Each reason now has words.
+{
+    var skipReason = mw.GetMethod("PublicUsersSkipReason", BindingFlags.Static | BindingFlags.NonPublic);
+    var skipCfgType = asm.GetType("Jellyfin.Profiles.Configuration.PluginConfiguration", true);
+    string Skip(bool listOn, string client)
+    {
+        if (skipReason == null) return "(no reason method)";
+        var c = Activator.CreateInstance(skipCfgType);
+        skipCfgType.GetProperty("EnableClientProfileList").SetValue(c, listOn);
+        return (string)skipReason.Invoke(null, new object[] { c, client });
+    }
+    var off = Skip(false, "Jellyfin for Android TV");
+    Ok("a list left alone because the setting is off says so (" + off + ")",
+       skipReason != null && off != null && off.Contains("Profiles on sign-in screens"));
+    Ok("and with it on, an Android TV's list is not skipped", skipReason != null && Skip(true, "Jellyfin for Android TV") == null);
+}
 
 if (panicField != null && ownUser != null && publicUsers != null)
 {

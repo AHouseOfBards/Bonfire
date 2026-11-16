@@ -295,6 +295,14 @@ namespace Jellyfin.Profiles
                 return;
             }
 
+            // The list is not ours to add to, and until this said so it left nothing in the log: issue #46
+            // looked for "user list requested" and found no line at all. Rate-limited like the
+            // declines in PublicUserInjector, since the route is anonymous.
+            if (IsPublicUsersRequest(context))
+            {
+                LogSkippedUserList(context, PublicUsersSkipReason(Plugin.Instance?.Configuration, null));
+            }
+
             if (!ShouldHandle(context, serverConfig, appHost))
             {
                 await _next(context).ConfigureAwait(false);
@@ -353,11 +361,14 @@ namespace Jellyfin.Profiles
 
             // An app that gets the picker signs in as the main account only; a profile signed in
             // directly there is refused, so listing them would offer tiles that fail.
-            if (Auth.ProxyClients.IsEnabled(config, Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                    context.Request.Headers[HeaderNames.Authorization],
-                    context.Request.Headers["X-Emby-Authorization"],
-                    "Client")))
+            var client = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                context.Request.Headers[HeaderNames.Authorization],
+                context.Request.Headers["X-Emby-Authorization"],
+                "Client");
+            var skip = PublicUsersSkipReason(config, client);
+            if (skip != null)
             {
+                LogSkippedUserList(context, skip);
                 await _next(context).ConfigureAwait(false);
                 return;
             }
@@ -476,6 +487,34 @@ namespace Jellyfin.Profiles
             context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
 
             await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Why a sign-in screen's user list is left as Jellyfin wrote it before the device is even
+        /// looked at, or null when it isn't. Words for the log, read by whoever is answering an issue.
+        /// </summary>
+        internal static string? PublicUsersSkipReason(PluginConfiguration? config, string? client)
+        {
+            if (config == null) return null;
+            if (!config.EnableClientProfileList)
+                return "\"Profiles on sign-in screens\" is off (Dashboard → Plugins → Bonfire → Clients)";
+            if (Auth.ProxyClients.IsEnabled(config, client))
+                return "the profile picker is on for this app (" + client?.Trim() + "), which signs in as the main account only";
+            return null;
+        }
+
+        /// <summary>Logs <paramref name="reason"/>: Information once per device per ten minutes, Debug otherwise.</summary>
+        private void LogSkippedUserList(HttpContext context, string? reason)
+        {
+            if (reason == null) return;
+            var deviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                context.Request.Headers[HeaderNames.Authorization],
+                context.Request.Headers["X-Emby-Authorization"],
+                "DeviceId");
+            _logger.Log(
+                Auth.SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
+                "ProfilesPlugin: user list requested by device {DeviceId}; profiles not added: {Reason}.",
+                string.IsNullOrWhiteSpace(deviceId) ? "(none)" : deviceId, reason);
         }
 
         /// <summary>
