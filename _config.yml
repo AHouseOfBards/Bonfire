@@ -162,6 +162,12 @@ defaults:
       title: Admin guide
       nav_order: 14
   - scope:
+      path: docs/toolchain.md
+    values:
+      layout: default
+      title: Toolchain
+      nav_order: 15
+  - scope:
       path: docs/profiles.md
     values:
       layout: default
