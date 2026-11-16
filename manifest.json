@@ -9,6 +9,14 @@
     "imageUrl": "https://raw.githubusercontent.com/AHouseOfBards/Bonfire/main/images/icon.jpg",
     "versions": [
       {
+        "version": "2.0.1.0",
+        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- A profile named like another account keeps its own name on a TV's sign-in screen. (#46)\n- A profile without a PIN opens from a TV's sign-in screen away from home, on a device the household has signed in on.\n- Addresses trusted for a household count as home on TV sign-in screens. (#42)\n- Web browsers show in the device list again.\n- One Android TV no longer shows as several devices.\n- Decorated themes no longer show their pattern repeating in a grid, and every star in Starlight twinkles.\n\n**Changed**\n\n- A new install shows profiles on TV sign-in screens and lets them sign in with their PIN.\n- Duplicate devices merge on their own, and a new device that looks like one you know asks \"Same device as ...?\".\n- The log says why a TV's sign-in screen got no profiles. (#46)\n\n**Added**\n\n- Apps with Bonfire built in, such as Moonfin, can use the profile's theme on their own screens. Off by default.\n- An app set to always ask for a PIN now always gets asked.\n- An Advanced setting keeps profiles without a PIN to the home network.\n",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v2.0.1/Jellyfin.Profiles.zip",
+        "checksum": "9b8b45e24468ee2dc96a2c45cf69a1f2",
+        "timestamp": "2026-11-16T17:49:59Z"
+      },
+      {
         "version": "1.9.0.6",
         "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Pressing Generate on a second screen no longer replaces a Bonfire code you already shared.\n- A second TV of the same model gets its new-device email once it plays something.\n- Bonfire still starts on a TV or server page that takes more than a minute to load.\n- Library artwork no longer waits forever when the server doesn't answer.\n- Device names in an imported backup show correctly.\n- A profile save that fails no longer leaves its new image behind.\n- On the admin page, buttons line up with the fields beside them, and theme images no longer disappear when the server is busy.\n- Undo in the theme editor no longer joins later edits onto an interrupted drag.\n- Security fixes.\n\n**Changed**\n\n- Deleting an account in Dashboard → Users also removes its Bonfire records and profile image.\n- Administrator accounts sign in on TVs with their password, not the main PIN.\n- The admin page opens Setup right after Status.\n- French, Spanish, Catalan, Polish and Turkish are retranslated from the current English.\n",
         "targetAbi": "10.11.0.0",
@@ -23,14 +31,6 @@
         "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v1.9.0.5/Jellyfin.Profiles.zip",
         "checksum": "44b02a10bf2c700e991cd9b61ddc10a9",
         "timestamp": "2026-11-14T01:54:25Z"
-      },
-      {
-        "version": "1.9.0.4",
-        "changelog": "**Beta release** - please report issues on GitHub.\n\n**Fixed**\n\n- Enter, Escape and the arrow keys now work on older TV browsers.\n- Viewing hours no longer run an hour long on the night the clocks go back.\n- Add Profile and Edit Profile no longer fail silently or save the wrong libraries.\n- A change to a main account now reaches its profiles straight away.\n- An eight-digit PIN no longer scrolls inside its box.\n- Errors that meant the server could not be reached now say so.\n- The admin page is readable under Jellyfin's light themes.\n- Screen readers name more buttons and lists.\n- Security and privacy fixes.\n\n**Changed**\n\n- Profile accounts no longer show in Dashboard → Users. Households links to them.\n- The Apps tab in the admin page is now Clients.\n- Shorter, plainer wording on the profile screen and the admin page.\n- Bonfire uses less server CPU and memory.\n\n**Added**\n\n- Bonfire can be turned off and on in the Status tab. New installs start off so you can finish setup first.\n- Custom themes can have a background picture, with a dim slider.\n- Custom themes can show profiles as a list, align left, and choose a tile size and logo corner.\n- The theme editor has its own colour picker and can expand its preview to the full profile screen.\n- The server logo can have rounded or square corners.\n- The switch log is kept for 90 days, and an administrator can delete it.",
-        "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/AHouseOfBards/Bonfire/releases/download/v1.9.0.4/Jellyfin.Profiles.zip",
-        "checksum": "2b776509783431797e2e071357b68064",
-        "timestamp": "2026-11-12T02:41:57Z"
       }
     ]
   }
