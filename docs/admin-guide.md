@@ -55,7 +55,7 @@ More in [Security](security.md).
 
 ## Theme
 
-- **Default theme.** What Bonfire's screens use. Default: Bonfire. There are twelve built in.
+- **Default theme.** What Bonfire's screens use. Default: Bonfire. There are thirteen built in.
 - **Let profiles choose their own theme.** On by default.
 - **Richer theme animation** (Advanced). Off by default. Never used with reduced motion or on low-power TVs.
 - **Server logo.** **Choose an image** (PNG, JPEG or WebP, up to 1 MB) or **Remove image**. With no image, the **Logo text** shows (up to 40 characters). Also **Logo corners** (Rounded or Square, default Rounded) and **Alt text** for screen readers (up to 100 characters). **Save text** saves the text fields.

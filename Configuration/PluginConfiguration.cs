@@ -624,13 +624,14 @@ namespace Jellyfin.Profiles.Configuration
         public const string Harvest = "harvest";
         public const string Snowfall = "snowfall";
         public const string Bloom = "bloom";
+        public const string Moonfin = "moonfin";
         public const string JellyfinDark = "jellyfin-dark";
         public const string JellyfinLight = "jellyfin-light";
         public const string HighContrast = "high-contrast";
 
         public static readonly string[] All =
         {
-            Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom,
+            Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, Harvest, Snowfall, Bloom, Moonfin,
             JellyfinDark, JellyfinLight, HighContrast,
         };
 

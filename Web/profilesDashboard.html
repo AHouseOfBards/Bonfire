@@ -1271,6 +1271,7 @@
                         <option value="harvest" data-i18n="admin.theme.harvest">Harvest (autumn leaves, warm amber)</option>
                         <option value="snowfall" data-i18n="admin.theme.snowfall">Snowfall (winter night, falling snow)</option>
                         <option value="bloom" data-i18n="admin.theme.bloom">Bloom (spring green, blossoms)</option>
+                        <option value="moonfin" data-i18n="admin.theme.moonfin">Moonfin (navy into indigo, cyan ring, outlined buttons)</option>
                         <option value="jellyfin-dark" data-i18n="admin.theme.jellyfin-dark">Jellyfin Dark (matches Jellyfin's dark theme)</option>
                         <option value="jellyfin-light" data-i18n="admin.theme.jellyfin-light">Jellyfin Light (matches Jellyfin's light theme)</option>
                         <option value="high-contrast" data-i18n="admin.theme.high-contrast">High contrast (black, white and yellow, larger text)</option>
@@ -4020,7 +4021,7 @@
             // over it would be worse than a refusal. The list lives inside the function so a test
             // can lift it out whole.
             function normalizeTheme(value, offered) {
-                const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
+                const ids = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom', 'moonfin',
                     'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
                 const v = String(value || '').trim().toLowerCase();
                 if (Array.isArray(offered)) return offered.indexOf(v) !== -1 ? v : 'bonfire';

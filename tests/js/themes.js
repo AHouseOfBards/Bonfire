@@ -161,7 +161,7 @@ const dashNormalize = (function () {
 
 const fileIds = fs.readdirSync(path.join(__dirname, '..', '..', 'Web', 'themes'))
     .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, ''));
-ok('the server lists twelve themes (' + serverIds.join(', ') + ')', serverIds.length === 12);
+ok('the server lists thirteen themes (' + serverIds.join(', ') + ')', serverIds.length === 13);
 serverIds.forEach(id => ok('Web/themes/' + id + '.json exists', fileIds.indexOf(id) !== -1));
 fileIds.forEach(id => ok('Web/themes/' + id + '.json is a server theme', serverIds.indexOf(id) !== -1));
 ok('bonfire is one of them, and first', serverIds[0] === 'bonfire');

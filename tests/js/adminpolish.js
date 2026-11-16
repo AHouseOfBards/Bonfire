@@ -146,7 +146,7 @@ const markupOrder = select ? (select[1].match(/value="([^"]+)"/g) || []).map(v =
 const clientOrder = /const THEMES = \[([^\]]*)\]/.exec(fs.readFileSync(L.profilesPath() || path.join(root, 'Web', 'profiles.js'), 'utf8'));
 const clientList = clientOrder ? clientOrder[1].split(',').map(x => x.trim().replace(/'/g, '')).filter(Boolean) : [];
 ok('the Default theme list, the server and the client all name the built-ins in one order',
-   serverOrder.length === 12 && JSON.stringify(markupOrder) === JSON.stringify(serverOrder) && JSON.stringify(clientList) === JSON.stringify(serverOrder),
+   serverOrder.length === 13 && JSON.stringify(markupOrder) === JSON.stringify(serverOrder) && JSON.stringify(clientList) === JSON.stringify(serverOrder),
    markupOrder.join() + ' | ' + serverOrder.join() + ' | ' + clientList.join());
 if (has('themeOfferedIds') && has('builtInThemeRowsHtml')) {
     const fn = new Function('t', 'escapeHtml', 'themeDisplayName', L.extractFunction(script, 'themeOfferedIds') + L.extractFunction(script, 'builtInThemeRowsHtml')

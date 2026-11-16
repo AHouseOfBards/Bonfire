@@ -108,6 +108,7 @@ js/a11y Web/themes/harvest.json
 js/a11y Web/themes/high-contrast.json
 js/a11y Web/themes/jellyfin-dark.json
 js/a11y Web/themes/jellyfin-light.json
+js/a11y Web/themes/moonfin.json
 js/a11y Web/themes/nightfall.json
 js/a11y Web/themes/patterns/
 js/a11y Web/themes/patterns/blossoms.svg
@@ -151,6 +152,7 @@ js/adminconfirm tests/js/adminconfirm.js
 js/admindependents Web/profilesDashboard.html
 js/admindependents tests/js/_lib.js
 js/admindependents tests/js/admindependents.js
+js/admindropdowns Web/themes/moonfin.json
 js/adminemail Web/profilesDashboard.html
 js/adminemail tests/js/_lib.js
 js/adminemail tests/js/adminemail.js
@@ -265,6 +267,7 @@ js/adminthemepreview Web/themes/harvest.json
 js/adminthemepreview Web/themes/high-contrast.json
 js/adminthemepreview Web/themes/jellyfin-dark.json
 js/adminthemepreview Web/themes/jellyfin-light.json
+js/adminthemepreview Web/themes/moonfin.json
 js/adminthemepreview Web/themes/nightfall.json
 js/adminthemepreview Web/themes/patterns/
 js/adminthemepreview Web/themes/patterns/blossoms.svg
@@ -305,6 +308,7 @@ js/adminthemes Web/themes/harvest.json
 js/adminthemes Web/themes/high-contrast.json
 js/adminthemes Web/themes/jellyfin-dark.json
 js/adminthemes Web/themes/jellyfin-light.json
+js/adminthemes Web/themes/moonfin.json
 js/adminthemes Web/themes/nightfall.json
 js/adminthemes Web/themes/patterns/
 js/adminthemes Web/themes/patterns/blossoms.svg
@@ -343,6 +347,7 @@ js/announcements Web/themes/harvest.json
 js/announcements Web/themes/high-contrast.json
 js/announcements Web/themes/jellyfin-dark.json
 js/announcements Web/themes/jellyfin-light.json
+js/announcements Web/themes/moonfin.json
 js/announcements Web/themes/nightfall.json
 js/announcements Web/themes/patterns/
 js/announcements Web/themes/patterns/blossoms.svg
@@ -599,6 +604,7 @@ js/breakpoints Web/themes/harvest.json
 js/breakpoints Web/themes/high-contrast.json
 js/breakpoints Web/themes/jellyfin-dark.json
 js/breakpoints Web/themes/jellyfin-light.json
+js/breakpoints Web/themes/moonfin.json
 js/breakpoints Web/themes/nightfall.json
 js/breakpoints Web/themes/patterns/
 js/breakpoints Web/themes/patterns/blossoms.svg
@@ -882,6 +888,7 @@ js/bundle Web/themes/harvest.json
 js/bundle Web/themes/high-contrast.json
 js/bundle Web/themes/jellyfin-dark.json
 js/bundle Web/themes/jellyfin-light.json
+js/bundle Web/themes/moonfin.json
 js/bundle Web/themes/nightfall.json
 js/bundle Web/themes/patterns/
 js/bundle Web/themes/patterns/blossoms.svg
@@ -911,6 +918,7 @@ js/busy Web/themes/harvest.json
 js/busy Web/themes/high-contrast.json
 js/busy Web/themes/jellyfin-dark.json
 js/busy Web/themes/jellyfin-light.json
+js/busy Web/themes/moonfin.json
 js/busy Web/themes/nightfall.json
 js/busy Web/themes/patterns/
 js/busy Web/themes/patterns/blossoms.svg
@@ -1319,6 +1327,7 @@ js/copylint Web/themes/harvest.json
 js/copylint Web/themes/high-contrast.json
 js/copylint Web/themes/jellyfin-dark.json
 js/copylint Web/themes/jellyfin-light.json
+js/copylint Web/themes/moonfin.json
 js/copylint Web/themes/nightfall.json
 js/copylint Web/themes/patterns/
 js/copylint Web/themes/snowfall.json
@@ -1373,6 +1382,7 @@ js/cssbaseline Web/themes/harvest.json
 js/cssbaseline Web/themes/high-contrast.json
 js/cssbaseline Web/themes/jellyfin-dark.json
 js/cssbaseline Web/themes/jellyfin-light.json
+js/cssbaseline Web/themes/moonfin.json
 js/cssbaseline Web/themes/nightfall.json
 js/cssbaseline Web/themes/patterns/
 js/cssbaseline Web/themes/patterns/blossoms.svg
@@ -1404,6 +1414,7 @@ js/customthemes Web/themes/harvest.json
 js/customthemes Web/themes/high-contrast.json
 js/customthemes Web/themes/jellyfin-dark.json
 js/customthemes Web/themes/jellyfin-light.json
+js/customthemes Web/themes/moonfin.json
 js/customthemes Web/themes/nightfall.json
 js/customthemes Web/themes/patterns/
 js/customthemes Web/themes/patterns/blossoms.svg
@@ -1454,6 +1465,7 @@ js/decolayers Web/themes/harvest.json
 js/decolayers Web/themes/high-contrast.json
 js/decolayers Web/themes/jellyfin-dark.json
 js/decolayers Web/themes/jellyfin-light.json
+js/decolayers Web/themes/moonfin.json
 js/decolayers Web/themes/nightfall.json
 js/decolayers Web/themes/patterns/
 js/decolayers Web/themes/patterns/blossoms.svg
@@ -1541,6 +1553,7 @@ js/driftname Web/themes/harvest.json
 js/driftname Web/themes/high-contrast.json
 js/driftname Web/themes/jellyfin-dark.json
 js/driftname Web/themes/jellyfin-light.json
+js/driftname Web/themes/moonfin.json
 js/driftname Web/themes/nightfall.json
 js/driftname Web/themes/patterns/
 js/driftname Web/themes/patterns/blossoms.svg
@@ -1602,6 +1615,7 @@ js/flatlook Web/themes/harvest.json
 js/flatlook Web/themes/high-contrast.json
 js/flatlook Web/themes/jellyfin-dark.json
 js/flatlook Web/themes/jellyfin-light.json
+js/flatlook Web/themes/moonfin.json
 js/flatlook Web/themes/nightfall.json
 js/flatlook Web/themes/patterns/
 js/flatlook Web/themes/patterns/blossoms.svg
@@ -1714,6 +1728,7 @@ js/fonts Web/themes/harvest.json
 js/fonts Web/themes/high-contrast.json
 js/fonts Web/themes/jellyfin-dark.json
 js/fonts Web/themes/jellyfin-light.json
+js/fonts Web/themes/moonfin.json
 js/fonts Web/themes/nightfall.json
 js/fonts Web/themes/patterns/
 js/fonts Web/themes/patterns/blossoms.svg
@@ -1747,6 +1762,7 @@ js/gatecover Web/themes/harvest.json
 js/gatecover Web/themes/high-contrast.json
 js/gatecover Web/themes/jellyfin-dark.json
 js/gatecover Web/themes/jellyfin-light.json
+js/gatecover Web/themes/moonfin.json
 js/gatecover Web/themes/nightfall.json
 js/gatecover Web/themes/patterns/
 js/gatecover Web/themes/patterns/blossoms.svg
@@ -1776,6 +1792,7 @@ js/gatefit Web/themes/harvest.json
 js/gatefit Web/themes/high-contrast.json
 js/gatefit Web/themes/jellyfin-dark.json
 js/gatefit Web/themes/jellyfin-light.json
+js/gatefit Web/themes/moonfin.json
 js/gatefit Web/themes/nightfall.json
 js/gatefit Web/themes/patterns/
 js/gatefit Web/themes/patterns/blossoms.svg
@@ -1811,6 +1828,7 @@ js/headerinject Web/themes/harvest.json
 js/headerinject Web/themes/high-contrast.json
 js/headerinject Web/themes/jellyfin-dark.json
 js/headerinject Web/themes/jellyfin-light.json
+js/headerinject Web/themes/moonfin.json
 js/headerinject Web/themes/nightfall.json
 js/headerinject Web/themes/patterns/
 js/headerinject Web/themes/patterns/blossoms.svg
@@ -1865,6 +1883,7 @@ js/householdscreens Web/themes/harvest.json
 js/householdscreens Web/themes/high-contrast.json
 js/householdscreens Web/themes/jellyfin-dark.json
 js/householdscreens Web/themes/jellyfin-light.json
+js/householdscreens Web/themes/moonfin.json
 js/householdscreens Web/themes/nightfall.json
 js/householdscreens Web/themes/patterns/
 js/householdscreens Web/themes/patterns/blossoms.svg
@@ -1918,6 +1937,7 @@ js/inject.test Web/themes/harvest.json
 js/inject.test Web/themes/high-contrast.json
 js/inject.test Web/themes/jellyfin-dark.json
 js/inject.test Web/themes/jellyfin-light.json
+js/inject.test Web/themes/moonfin.json
 js/inject.test Web/themes/nightfall.json
 js/inject.test Web/themes/patterns/
 js/inject.test Web/themes/patterns/blossoms.svg
@@ -1953,6 +1973,7 @@ js/issues151 Web/themes/harvest.json
 js/issues151 Web/themes/high-contrast.json
 js/issues151 Web/themes/jellyfin-dark.json
 js/issues151 Web/themes/jellyfin-light.json
+js/issues151 Web/themes/moonfin.json
 js/issues151 Web/themes/nightfall.json
 js/issues151 Web/themes/patterns/
 js/issues151 Web/themes/patterns/blossoms.svg
@@ -2280,6 +2301,7 @@ js/mergetest Web/themes/harvest.json
 js/mergetest Web/themes/high-contrast.json
 js/mergetest Web/themes/jellyfin-dark.json
 js/mergetest Web/themes/jellyfin-light.json
+js/mergetest Web/themes/moonfin.json
 js/mergetest Web/themes/nightfall.json
 js/mergetest Web/themes/patterns/
 js/mergetest Web/themes/patterns/blossoms.svg
@@ -2320,6 +2342,7 @@ js/moonfinthemes Web/themes/harvest.json
 js/moonfinthemes Web/themes/high-contrast.json
 js/moonfinthemes Web/themes/jellyfin-dark.json
 js/moonfinthemes Web/themes/jellyfin-light.json
+js/moonfinthemes Web/themes/moonfin.json
 js/moonfinthemes Web/themes/nightfall.json
 js/moonfinthemes Web/themes/snowfall.json
 js/moonfinthemes Web/themes/starlight.json
@@ -2350,6 +2373,7 @@ js/onoff Web/themes/harvest.json
 js/onoff Web/themes/high-contrast.json
 js/onoff Web/themes/jellyfin-dark.json
 js/onoff Web/themes/jellyfin-light.json
+js/onoff Web/themes/moonfin.json
 js/onoff Web/themes/nightfall.json
 js/onoff Web/themes/patterns/
 js/onoff Web/themes/patterns/blossoms.svg
@@ -2398,6 +2422,7 @@ js/panicprompt tests/js/panicprompt.js
 js/panicshortcutgate Web/profiles.js
 js/panicshortcutgate tests/js/_lib.js
 js/panicshortcutgate tests/js/panicshortcutgate.js
+js/patternlayout Web/themes/moonfin.json
 js/patternupload Web/i18n/
 js/patternupload Web/i18n/ca.json
 js/patternupload Web/i18n/es.json
@@ -2417,6 +2442,7 @@ js/patternupload Web/themes/harvest.json
 js/patternupload Web/themes/high-contrast.json
 js/patternupload Web/themes/jellyfin-dark.json
 js/patternupload Web/themes/jellyfin-light.json
+js/patternupload Web/themes/moonfin.json
 js/patternupload Web/themes/nightfall.json
 js/patternupload Web/themes/patterns/
 js/patternupload Web/themes/patterns/blossoms.svg
@@ -2446,6 +2472,7 @@ js/pickerlook Web/themes/harvest.json
 js/pickerlook Web/themes/high-contrast.json
 js/pickerlook Web/themes/jellyfin-dark.json
 js/pickerlook Web/themes/jellyfin-light.json
+js/pickerlook Web/themes/moonfin.json
 js/pickerlook Web/themes/nightfall.json
 js/pickerlook Web/themes/snowfall.json
 js/pickerlook Web/themes/starlight.json
@@ -2496,6 +2523,7 @@ js/profilebasics Web/themes/harvest.json
 js/profilebasics Web/themes/high-contrast.json
 js/profilebasics Web/themes/jellyfin-dark.json
 js/profilebasics Web/themes/jellyfin-light.json
+js/profilebasics Web/themes/moonfin.json
 js/profilebasics Web/themes/nightfall.json
 js/profilebasics Web/themes/patterns/
 js/profilebasics Web/themes/patterns/blossoms.svg
@@ -2526,6 +2554,7 @@ js/profileform Web/themes/harvest.json
 js/profileform Web/themes/high-contrast.json
 js/profileform Web/themes/jellyfin-dark.json
 js/profileform Web/themes/jellyfin-light.json
+js/profileform Web/themes/moonfin.json
 js/profileform Web/themes/nightfall.json
 js/profileform Web/themes/patterns/
 js/profileform Web/themes/patterns/blossoms.svg
@@ -2582,6 +2611,7 @@ js/ratings Web/themes/harvest.json
 js/ratings Web/themes/high-contrast.json
 js/ratings Web/themes/jellyfin-dark.json
 js/ratings Web/themes/jellyfin-light.json
+js/ratings Web/themes/moonfin.json
 js/ratings Web/themes/nightfall.json
 js/ratings Web/themes/patterns/
 js/ratings Web/themes/patterns/blossoms.svg
@@ -2641,6 +2671,7 @@ js/restrictions Web/themes/harvest.json
 js/restrictions Web/themes/high-contrast.json
 js/restrictions Web/themes/jellyfin-dark.json
 js/restrictions Web/themes/jellyfin-light.json
+js/restrictions Web/themes/moonfin.json
 js/restrictions Web/themes/nightfall.json
 js/restrictions Web/themes/patterns/
 js/restrictions Web/themes/patterns/blossoms.svg
@@ -2723,6 +2754,7 @@ js/themefonts Web/themes/harvest.json
 js/themefonts Web/themes/high-contrast.json
 js/themefonts Web/themes/jellyfin-dark.json
 js/themefonts Web/themes/jellyfin-light.json
+js/themefonts Web/themes/moonfin.json
 js/themefonts Web/themes/nightfall.json
 js/themefonts Web/themes/snowfall.json
 js/themefonts Web/themes/starlight.json
@@ -2748,6 +2780,7 @@ js/themes Web/themes/harvest.json
 js/themes Web/themes/high-contrast.json
 js/themes Web/themes/jellyfin-dark.json
 js/themes Web/themes/jellyfin-light.json
+js/themes Web/themes/moonfin.json
 js/themes Web/themes/nightfall.json
 js/themes Web/themes/patterns/
 js/themes Web/themes/patterns/blossoms.svg
@@ -2778,6 +2811,7 @@ js/themetest Web/themes/harvest.json
 js/themetest Web/themes/high-contrast.json
 js/themetest Web/themes/jellyfin-dark.json
 js/themetest Web/themes/jellyfin-light.json
+js/themetest Web/themes/moonfin.json
 js/themetest Web/themes/nightfall.json
 js/themetest Web/themes/patterns/
 js/themetest Web/themes/patterns/blossoms.svg
@@ -2807,6 +2841,7 @@ js/themetokens Web/themes/harvest.json
 js/themetokens Web/themes/high-contrast.json
 js/themetokens Web/themes/jellyfin-dark.json
 js/themetokens Web/themes/jellyfin-light.json
+js/themetokens Web/themes/moonfin.json
 js/themetokens Web/themes/nightfall.json
 js/themetokens Web/themes/patterns/
 js/themetokens Web/themes/patterns/blossoms.svg
@@ -2836,6 +2871,7 @@ js/timerequests Web/themes/harvest.json
 js/timerequests Web/themes/high-contrast.json
 js/timerequests Web/themes/jellyfin-dark.json
 js/timerequests Web/themes/jellyfin-light.json
+js/timerequests Web/themes/moonfin.json
 js/timerequests Web/themes/nightfall.json
 js/timerequests Web/themes/patterns/
 js/timerequests Web/themes/patterns/blossoms.svg
@@ -2885,6 +2921,7 @@ js/tvmode Web/themes/harvest.json
 js/tvmode Web/themes/high-contrast.json
 js/tvmode Web/themes/jellyfin-dark.json
 js/tvmode Web/themes/jellyfin-light.json
+js/tvmode Web/themes/moonfin.json
 js/tvmode Web/themes/nightfall.json
 js/tvmode Web/themes/patterns/
 js/tvmode Web/themes/patterns/blossoms.svg
@@ -2922,6 +2959,7 @@ js/uitest Web/themes/harvest.json
 js/uitest Web/themes/high-contrast.json
 js/uitest Web/themes/jellyfin-dark.json
 js/uitest Web/themes/jellyfin-light.json
+js/uitest Web/themes/moonfin.json
 js/uitest Web/themes/nightfall.json
 js/uitest Web/themes/patterns/
 js/uitest Web/themes/patterns/blossoms.svg

@@ -136,11 +136,18 @@ check('the others still ran green', /aa[ ]+1 passed/.test(failing.out) && /cc[ ]
 // ── Harnesses that run alone ─────────────────────────────────────────────────────────
 // Each marks that it is running and fails if anything else is. Named to sort before the
 // plain stub, so only the runner's own rule can put them after it.
+// It looks both when it starts and when it ends. Looking only at the start failed the
+// unmarked control on CI (7d93b452): the stubs started together, each looked before any
+// had written its mark, and so none saw the others. A neighbour that started at the same
+// moment is still running at the end, so the second look always catches it.
 const alone = PRE
-    + "const others = fs.readdirSync(d).filter(function (f) { return /^(plain|excl)\\./.test(f); });\n"
-    + "if (others.length) { console.log('overlap with ' + others.join(', ')); process.exit(1); }\n"
+    + "function look() {\n"
+    + "  const others = fs.readdirSync(d).filter(function (f) { return /^(plain|excl)\\./.test(f) && f !== 'excl.' + NAME; });\n"
+    + "  if (others.length) { console.log('overlap with ' + others.join(', ')); process.exit(1); }\n"
+    + "}\n"
+    + "look();\n"
     + "fs.writeFileSync(d + '/excl.' + NAME, '');\n"
-    + "setTimeout(function () { fs.unlinkSync(d + '/excl.' + NAME); console.log('1 passed, 0 failed'); }, 300);\n";
+    + "setTimeout(function () { look(); fs.unlinkSync(d + '/excl.' + NAME); console.log('1 passed, 0 failed'); }, 300);\n";
 const plainSlow = PRE
     + "fs.writeFileSync(d + '/plain.' + NAME, '');\n"
     + "setTimeout(function () { fs.unlinkSync(d + '/plain.' + NAME); console.log('1 passed, 0 failed'); }, 900);\n";
