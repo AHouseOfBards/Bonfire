@@ -1,8 +1,9 @@
 # Apps
 
-Bonfire works in three ways, depending on the app. Apps that load the web client from your
-server get the full switcher. Apps with their own sign-in screen can list your profiles
-there instead. Moonfin gets a profile picker (beta) on its home screen.
+Bonfire works in four ways, depending on the app. Apps that load the web client from your
+server get the full switcher. Some apps have Bonfire built in. Apps with their own sign-in
+screen can list your profiles there instead. Moonfin gets a profile picker (beta) on its
+home screen.
 
 ## What each app can do
 
@@ -16,6 +17,7 @@ Apps are checked at the version in brackets. **Partial** is explained under the 
 | Swiftfin (1.6.1) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
 | Findroid (1.2.0) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
 | Wholphin (1.1.1) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
+| Aster (0.11), as reported by its developer | yes | yes | yes | yes | partial | no | no | yes | no | no | partial | no | no | yes |
 | Streamyfin, Plezy, Tsukimi (name and PIN) | partial | partial | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
 | Moonfin picker (beta) | yes | yes | partial | yes | partial | no | no | partial | no | no | no | no | no | no |
 
@@ -28,6 +30,8 @@ The native sign-in list is the row for each app that uses it: Android TV, Roku, 
 - **Main PIN:** on a known device it works instead of the account's password. A saved sign-in never asks for it.
 - **Viewing limits:** the server always enforces them. The warning shows only in an app that shows server messages.
 - **Maintenance message:** shown as a message in an app that shows them, otherwise as the app's error text.
+
+On Aster, **Viewing limits** is partial because it shows the refusal but not the warning ahead of time, and **Linked accounts** because their profiles show on the picker but links are added elsewhere.
 
 On Moonfin, **Main PIN** is partial because the main account's owner can turn off the keypad on its folder.
 
@@ -58,6 +62,15 @@ The switcher, profile management, avatars, library artwork and shared Bonfires.
 | Jellyfin Media Player | Windows, macOS, Linux. |
 | LG webOS | webOS 4.5 (2019 sets) and later. |
 | Samsung Tizen | Needs the Bonfire loader added once. See [Samsung Tizen](troubleshooting.md#samsung-tizen). |
+
+## Built in
+
+These apps talk to Bonfire themselves: a "Who's watching?" picker, the PIN pad and
+auto-lock, with nothing to turn on.
+
+| App | Notes |
+| --- | --- |
+| [Aster](https://astermediaplayer.com) | Apple TV, iPhone, iPad, Android, Android TV, Windows, Linux. The main account can also create and edit profiles. |
 
 ## Profile sign-in
 

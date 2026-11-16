@@ -43,6 +43,9 @@ Nothing else to set up. If the switcher doesn't appear, see
 Jellyfin Media Player, LG webOS 4.5 and later, and Samsung Tizen
 ([one-time setup](docs/troubleshooting.md#samsung-tizen)).
 
+**Built in:** [Aster](https://astermediaplayer.com) has Bonfire built in on Apple, Android,
+Windows and Linux ([details](docs/clients.md#built-in)).
+
 **Profile sign-in:** Jellyfin for Android TV, Roku, Swiftfin, Findroid and Wholphin can
 list your profiles on their own sign-in screen ([setup](docs/clients.md#profile-sign-in)).
 Android TV is confirmed on hardware; the others are not yet.
