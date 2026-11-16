@@ -451,6 +451,52 @@
     ///
     /// Chromium 53: no object spread, no ?. (this runs on every webOS television).
     function themeCss(theme, patterns) {
+        /// A built-in pattern repeated as itself drew a grid anyone could see (Starlight's big
+        /// stars in rows, 2.0). So it is laid out as one larger tile: 3 by 3 copies, each turned or
+        /// mirrored differently. The kinds: 0 as drawn, 1 mirrored, 2 flipped, 3 half a turn, 4 a
+        /// quarter, 5 three quarters, 6 and 7 the two diagonal mirrors. Every picture in these files
+        /// sits inside its tile, so any arrangement joins up. Not waves (its lines run across the
+        /// edge into the next tile, so only the same tile joins them) and not an upload (it could
+        /// hold words). Hearts are only mirrored, so none is upside down. Moonfin uses the same table
+        /// (bonfirePatternCells); change both.
+        const PATTERN_TURNS = ['1 0 0 1', '-1 0 0 1', '1 0 0 -1', '-1 0 0 -1', '0 1 -1 0', '0 -1 1 0', '0 1 1 0', '0 -1 -1 0'];
+        function patternCells(name) {
+            if (name === 'hearts') return [0, 1, 0, 1, 0, 1, 0, 0, 1];
+            return ['blossoms', 'bubbles', 'confetti', 'embers', 'leaves', 'moons', 'snow', 'stars'].indexOf(name) >= 0
+                ? [0, 4, 3, 6, 1, 5, 2, 7, 4] : null;
+        }
+
+        /// A built-in pattern's SVG from its data: URI, with its size and its pictures (each
+        /// element after <defs>) apart, or null when it isn't one this can read.
+        function patternParts(uri) {
+            let svg;
+            try { svg = decodeURIComponent(uri.slice(uri.indexOf(',') + 1)); } catch (e) { return null; }
+            const open = /^\s*<svg\b([^>]*)>/.exec(svg), close = svg.lastIndexOf('</svg>');
+            if (!open || close < open[0].length) return null;
+            const w = Number((/\swidth=['"]([\d.]+)/.exec(open[1]) || [])[1]);
+            const h = Number((/\sheight=['"]([\d.]+)/.exec(open[1]) || [])[1]);
+            if (!(w > 0) || w !== h) return null;
+            let body = svg.slice(open[0].length, close);
+            const defs = /<defs\b[^>]*>[\s\S]*?<\/defs>/.exec(body);
+            if (defs) body = body.slice(0, defs.index) + body.slice(defs.index + defs[0].length);
+            const pictures = body.match(/<([a-zA-Z]+)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g) || [];
+            return { size: w, defs: defs ? defs[0] : '', pictures: pictures };
+        }
+
+        /// [pictures] of a pattern laid out as [cells], as a data: URI. The cell is a <g> used nine
+        /// times, so the file grows by a line a cell, not by nine copies.
+        function laidOutPattern(parts, pictures, cells) {
+            const w = parts.size, half = w / 2, n = 3;
+            let out = "<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='"
+                + (w * n) + "' height='" + (w * n) + "'>" + parts.defs + "<defs><g id='jpf-cell'>" + pictures.join('') + '</g></defs>';
+            cells.forEach((k, i) => {
+                out += "<use xlink:href='#jpf-cell' transform='translate(" + ((i % n) * w + half) + ' ' + (Math.floor(i / n) * w + half)
+                    + ') matrix(' + PATTERN_TURNS[k] + ' 0 0) translate(' + (-half) + ' ' + (-half) + ")'/>";
+            });
+            return 'data:image/svg+xml,' + encodeURIComponent(out + '</svg>');
+        }
+
+
         if (!theme || typeof theme !== 'object') return '';
         const id = String(theme.id || '');
         if (!/^[a-z0-9-]{1,40}$/.test(id)) return '';
@@ -613,14 +659,25 @@
             : (d && /^[0-9a-f]{32}\.(png|webp)$/.test(String(d.image || ''))
                 ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + d.image) : '/plugins/profiles/themes/pattern-files/' + d.image).replace(/["\\\n\r]/g, '')
                 : null);
-        const patternImage = patternPicture(pattern);
-        const patternSize = pattern ? num(pattern.size, 240) : 240;
+        // A built-in one is laid out 3 by 3 (patternCells), so one repeat is three of its size;
+        // each picture stays the size the theme gave it. layout() leaves anything else as it was.
+        const layout = d => {
+            const uri = patternPicture(d);
+            const cells = uri && patterns && uri === patterns[d.image] ? patternCells(d.image) : null;
+            const parts = cells ? patternParts(uri) : null;
+            return parts ? { uri: laidOutPattern(parts, parts.pictures, cells), scale: 3, parts: parts, cells: cells }
+                : { uri: uri, scale: 1, parts: null, cells: null };
+        };
+        const laid = layout(pattern);
+        const patternImage = laid.uri;
+        const patternSize = (pattern ? num(pattern.size, 240) : 240) * laid.scale;
         // A second pattern, drawn above the first (::after, where the first is ::before). Only a
         // theme that has one gets any of its rules or variables, so every other theme is written as
         // before. It needs the first: the validator says so, and so does this.
         const pattern2 = patternImage ? deco('pattern2') : null;
-        const pattern2Image = patternPicture(pattern2);
-        const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
+        const laid2 = layout(pattern2);
+        const pattern2Image = laid2.uri;
+        const pattern2Size = (pattern2Image ? num(pattern2.size, 240) : 240) * laid2.scale;
         // 0.1 to 1, and 1 (today's look) writes nothing.
         const layerOpacity = d => (d && typeof d.opacity === 'number' && d.opacity >= 0.1 && d.opacity < 1 ? d.opacity : 1);
         const patternOpacity = layerOpacity(pattern);
@@ -939,7 +996,9 @@
         // first. Every moving decoration below writes the same three, and tests/js/a11y.js checks
         // each rule for them.
         if (patternImage && pattern.drift === 'down') {
-            const seconds = num(pattern.seconds, 32);
+            // `seconds` is per picture height, so a laid-out repeat three high takes three times
+            // as long at the same speed.
+            const seconds = num(pattern.seconds, 32) * laid.scale;
             // A name, so no '.': a size of 240.5 (the validator allows it) made "jpf-drift-240.5", which
             // is not an identifier and dropped the animation.
             const anim = 'jpf-drift-' + String(patternSize).replace(/[^0-9a-z]/gi, '-');
@@ -956,7 +1015,7 @@
         // The second pattern drifts the same way, on ::after, by its own size and seconds. The
         // keyframes are named by size, so two layers of one size share one pair.
         if (pattern2Image && pattern2.drift === 'down') {
-            const seconds2 = num(pattern2.seconds, 32);
+            const seconds2 = num(pattern2.seconds, 32) * laid2.scale;
             const anim2 = 'jpf-drift-' + String(pattern2Size).replace(/[^0-9a-z]/gi, '-');
             css += '@media (prefers-reduced-motion: no-preference) {\n'
                 + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::after {\n'
@@ -969,7 +1028,8 @@
         }
 
         // twinkle: a slow fade of the pattern between two layers, so the stars do not all dim
-        // together. The pattern's layer eases down to 45% and back; a second copy, shifted a third
+        // together. A built-in pattern is split in two (below). Otherwise (an upload) the
+        // pattern's layer eases down to 45% and back; a second copy, shifted a third
         // of a tile so its stars fall elsewhere, rises to 60% and back while the first is lowest.
         // Opacity only, which the compositor does without repainting. The same three conditions as
         // the drift. The second layer exists only inside them, so a screen that does not twinkle
@@ -992,6 +1052,29 @@
             if (pattern2Image) {
                 css += '@media (prefers-reduced-motion: no-preference) {\n'
                     + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n}\n' + keyframes;
+                return css;
+            }
+            // A built-in pattern twinkles as two halves of its pictures, every other one, one on
+            // each layer, fading half a loop apart. The shifted copy below dimmed one fixed set
+            // of stars and added a second set on top; this way every star twinkles, its neighbor
+            // is bright while it is dim, and together the layers are exactly the pattern.
+            // Moonfin deals the same pictures into three groups.
+            const halves = laid.parts && laid.parts.pictures.length >= 2
+                ? [0, 1].map(k => laidOutPattern(laid.parts, laid.parts.pictures.filter((x, i) => i % 2 === k), laid.cells))
+                : null;
+            if (halves) {
+                const nameS = 'jpf-twinkle-s' + tag;
+                const half = (period / 2) + 's';
+                css += '@media (prefers-reduced-motion: no-preference) {\n'
+                    + '    ' + over + '::before {\n        background-image: url("' + halves[0] + '");\n        will-change: opacity;\n' + run(nameS) + '    }\n'
+                    + '    ' + over + '::after {\n        content: \'\';\n        position: fixed;\n'
+                    + '        top: 0;\n        right: 0;\n        bottom: 0;\n        left: 0;\n'
+                    + '        background-image: url("' + halves[1] + '");\n        background-size: var(--jpf-deco-size) var(--jpf-deco-size);\n'
+                    + '        pointer-events: none;\n        z-index: -1;\n        will-change: opacity;\n'
+                    + run(nameS)
+                    + '        -webkit-animation-delay: -' + half + ';\n        animation-delay: -' + half + ';\n    }\n}\n'
+                    + '@-webkit-keyframes ' + nameS + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.2) + '; }\n}\n'
+                    + '@keyframes ' + nameS + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.2) + '; }\n}\n';
                 return css;
             }
             css += '@media (prefers-reduced-motion: no-preference) {\n'
