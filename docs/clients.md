@@ -79,6 +79,10 @@ and editing profiles still needs one of the apps above.
 
 Turn it on under **Dashboard → Plugins → Bonfire → Clients**.
 
+**The list is empty on a new device.** Sign in once with the main account's password.
+After that, the app's user list shows the profiles. On Android TV, press the person icon at
+the top left. The app opens as the last account unless it is set to ask (see below).
+
 | App | Status |
 | --- | --- |
 | Jellyfin for Android TV | Confirmed on hardware. |

@@ -100,6 +100,15 @@ Bonfire keeps a copy of its settings beside the file, as `PluginConfiguration.xm
 > Deleting both files erases every Bonfire setting.
 
 
+## No profiles on my TV's sign-in screen
+
+1. Turn on **Show profiles on the sign-in screen** under **Dashboard → Plugins → Bonfire →
+   Clients**.
+2. Sign in on the TV once with the main account's password.
+3. Open the app's user list. On Android TV, press the person icon at the top left.
+
+The app opens as the last account unless it is set to ask. See [Apps](clients.md).
+
 ## Quick Connect still shows on my Android TV
 
 If anyone outside a household has signed in on a TV with the same name, Bonfire stops hiding

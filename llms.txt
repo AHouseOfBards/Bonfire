@@ -32,6 +32,7 @@
 - Apps with only a username and password box (Streamyfin, Plezy, Tsukimi) work by typing a profile's name and PIN, once the main account has signed in on that app. This needs "Let profiles sign in with their PIN" under Clients.
 - Not supported: Infuse (no Jellyfin user list). Apps with their own interface, rather than the server's web client, don't run plugin code, so they get profile sign-in instead of the switcher.
 - Moonfin: sign in as the main account and pick a profile on its home screen (beta).
+- Aster has Bonfire built in on Apple, Android, Windows and Linux: the profile screen, PINs, auto-lock and managing profiles (reported by its developer).
 
 ## Docs
 
@@ -54,3 +55,4 @@ Also published as a site with search: https://ahouseofbards.github.io/Bonfire/
 - [Beta channel](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/beta-channel.md)
 - [Contributing](https://github.com/AHouseOfBards/Bonfire/blob/main/.github/CONTRIBUTING.md)
 - [Translations](https://github.com/AHouseOfBards/Bonfire/blob/main/Web/i18n/README.md): adding a language
+- [Toolchain](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/toolchain.md): every tool and version, per platform
