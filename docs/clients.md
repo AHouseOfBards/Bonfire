@@ -2,8 +2,8 @@
 
 Bonfire works in four ways, depending on the app. Apps that load the web client from your
 server get the full switcher. Some apps have Bonfire built in. Apps with their own sign-in
-screen can list your profiles there instead. Moonfin gets a profile picker (beta) on its
-home screen.
+screen can list your profiles there instead. On Moonfin, the server can add a profile picker
+(beta) to its home screen.
 
 ## What each app can do
 
@@ -135,8 +135,8 @@ works the same way for any app not listed here.
 
 ## Profile picker (beta)
 
-Only Moonfin for now. It's beta, off by default, and may change when native support
-arrives. Tick it under **Dashboard → Plugins → Bonfire → Clients → Profile picker**, then sign in on it
+Only Moonfin for now. It's beta and off by default. It's Bonfire's own workaround, built on
+the server, not a Moonfin feature: report problems with it to Bonfire, not to Moonfin. Tick it under **Dashboard → Plugins → Bonfire → Clients → Profile picker**, then sign in on it
 with the main account. The home screen shows a **Profiles** library:
 
 1. Open a profile's folder to use that profile. A profile with a PIN opens a keypad. So

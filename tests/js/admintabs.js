@@ -74,11 +74,17 @@ ok('the Clients tab marks the profile picker as beta, in one short line about cl
 const fs = require('fs'), path = require('path');
 const readme = fs.readFileSync(path.join(L.ROOT, 'README.md'), 'utf8');
 const clients = fs.readFileSync(path.join(L.ROOT, 'docs', 'clients.md'), 'utf8');
-ok('README names the picker as beta and says it may change when native support arrives',
-   /Profile picker \(beta\)/.test(readme) && /may change when native support arrives/.test(readme));
-ok('docs/clients.md does too, on the picker\'s own section',
-   /## Profile picker \(beta\)[\s\S]*?may change when native support arrives/.test(clients.replace(/\s+/g, ' ')));
-ok('and its intro calls the picker beta', /Moonfin gets a profile picker \(beta\)/.test(clients.replace(/\s+/g, ' ')));
+// Moonfin's maintainer read "may change when native support arrives" as a claim that
+// Moonfin had agreed to support Bonfire (Moonfin-Core #2336). The docs now say whose the
+// picker is, and where its problems go; and that promise must not come back.
+const flat = s => s.replace(/\s+/g, ' ');
+ok('README names the picker as beta and as Bonfire\'s workaround, not a Moonfin feature',
+   /Profile picker \(beta\)/.test(readme) && /Bonfire's own workaround, not a Moonfin feature/.test(flat(readme))
+   && !/native support arrives/.test(flat(readme)));
+ok('docs/clients.md does too, on the picker\'s own section, and sends problems to Bonfire',
+   /## Profile picker \(beta\)[\s\S]*?not a Moonfin feature: report problems with it to Bonfire, not to Moonfin/.test(flat(clients))
+   && !/native support arrives/.test(flat(clients)));
+ok('and its intro calls the picker beta', /profile picker \(beta\) to its home screen/.test(flat(clients)));
 
 console.log('\n── Advanced ────────────────────────────────────────────────────');
 const folds = n => (panels[n].match(/<details class="jpf-advanced[^"]*"/g) || []).length;
