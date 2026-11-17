@@ -50,8 +50,8 @@ Windows and Linux ([details](docs/clients.md#built-in)).
 list your profiles on their own sign-in screen ([setup](docs/clients.md#profile-sign-in)).
 Android TV is confirmed on hardware; the others are not yet.
 
-**Profile picker (beta):** Moonfin shows a Profiles folder on its home screen
-([how it works](docs/clients.md#profile-picker-beta)). It's off by default and may change when native support arrives.
+**Profile picker (beta):** the server can add a Profiles folder to Moonfin's home screen
+([how it works](docs/clients.md#profile-picker-beta)). This is Bonfire's own workaround, not a Moonfin feature, so report problems with it here. It's off by default.
 
 Details for every app, and what each can do, are in [Apps](docs/clients.md#what-each-app-can-do).
 
