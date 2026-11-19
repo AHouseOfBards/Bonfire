@@ -60,6 +60,7 @@ cs/injection *
 cs/libraryownership *
 cs/limits *
 cs/limitspublish *
+cs/logforge *
 cs/mainpin *
 cs/maintenance *
 cs/masterupdate *
@@ -2049,6 +2050,7 @@ js/logobackphoto Web/profiles.js
 js/logobackphoto tests/js/_lib.js
 js/logobackphoto tests/js/logobackphoto.js
 js/logocorner *
+js/logforge *
 js/mainpin Web/profiles.js
 js/mainpin tests/js/_lib.js
 js/mainpin tests/js/mainpin.js

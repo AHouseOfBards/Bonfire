@@ -81,7 +81,7 @@ namespace Jellyfin.Profiles.Configuration
                 config.CrossHouseholdEntries.RemoveAt(0);
                 logger?.LogWarning(
                     "ProfilesPlugin: More than {Max} cross-household sign-ins are recorded, so the oldest was dropped: device {DeviceId} in profile {ProfileId}. That device can no longer be signed out when its access is removed.",
-                    Max, dropped.DeviceId, dropped.ProfileUserId);
+                    Max, Auth.LogText.Clean(dropped.DeviceId), dropped.ProfileUserId);
             }
             return true;
         }

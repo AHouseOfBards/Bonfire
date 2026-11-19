@@ -82,7 +82,7 @@ namespace Jellyfin.Profiles.Auth
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "ProfilesPlugin: could not remove device {Device} before a switch.", row.DeviceId);
+                        logger.LogWarning(ex, "ProfilesPlugin: could not remove device {Device} before a switch.", LogText.Clean(row.DeviceId));
                     }
                 }
             }

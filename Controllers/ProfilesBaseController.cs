@@ -2298,7 +2298,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {ProfileId} out on device {DeviceId}.", e.ProfileUserId, e.DeviceId);
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {ProfileId} out on device {DeviceId}.", e.ProfileUserId, Auth.LogText.Clean(e.DeviceId));
                 }
             }
 
@@ -2608,7 +2608,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Rejected image for {Context} — '{Header}' is not a format this plugin stores.",
-                    context, header.Length > 64 ? header.Substring(0, 64) : header);
+                    context, Auth.LogText.Clean(header.Length > 64 ? header.Substring(0, 64) : header));
                 return (null, null, notSupported);
             }
 
@@ -2968,7 +2968,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     _logger.LogWarning(
                         "ProfilesPlugin: Asked for starter avatar '{Avatar}', which is unknown or switched off.",
-                        libraryAvatarId);
+                        Auth.LogText.Clean(libraryAvatarId));
                     return false;
                 }
 
@@ -3005,7 +3005,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Asked for library avatar '{Avatar}', which does not exist.",
-                    libraryAvatarId);
+                    Auth.LogText.Clean(libraryAvatarId));
                 return false;
             }
 

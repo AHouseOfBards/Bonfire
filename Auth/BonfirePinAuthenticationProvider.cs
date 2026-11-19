@@ -158,8 +158,8 @@ namespace Jellyfin.Profiles.Auth
                 _logger.LogInformation(
                     "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, which no household has "
                     + "signed in on, so there is no way to tell which profile was meant.",
-                    username,
-                    string.IsNullOrEmpty(sent) ? "(none sent)" : sent);
+                    LogText.Clean(username),
+                    LogText.Clean(string.IsNullOrEmpty(sent) ? "(none sent)" : sent));
                 throw Decline();
             }
 
@@ -180,7 +180,7 @@ namespace Jellyfin.Profiles.Auth
                 _logger.LogInformation(
                     "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, but household {Master} has no "
                     + "profile of that name.",
-                    typed, deviceId, master);
+                    LogText.Clean(typed), LogText.Clean(deviceId), master);
                 throw Decline();
             }
 
@@ -192,7 +192,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: {Name} resolved to profile {ProfileId}, which no longer exists.",
-                    username, mapping.ProfileUserId);
+                    LogText.Clean(username), mapping.ProfileUserId);
                 throw Decline();
             }
 
@@ -252,7 +252,7 @@ namespace Jellyfin.Profiles.Auth
                         "ProfilesPlugin: a PIN for master account {UserId} from device {DeviceId}, which it has "
                         + "not signed in on with its password; only the password is being checked.",
                         resolvedUser.Id,
-                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                        LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 }
                 else if (master != null && !Plugin.IsOff && LooksLikePin(password))
                 {
@@ -310,7 +310,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a direct sign-in to profile {ProfileId} on {Client}, which "
                     + "gets the profile picker instead.",
                     mapping.ProfileUserId,
-                    RequestDevice.Client);
+                    LogText.Clean(RequestDevice.Client));
                 throw Decline();
             }
 
@@ -333,7 +333,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId} from device "
                     + "{DeviceId} ({Reason}).",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId,
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId),
                     access);
 
                 // Declined with the message every other refusal carries, so a response cannot say which
@@ -403,14 +403,14 @@ namespace Jellyfin.Profiles.Auth
                         + "which this household has not signed in on. Set a PIN on the profile to allow "
                         + "entry from anywhere.",
                         mapping.ProfileUserId,
-                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                        LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                     throw Decline();
                 }
 
                 _logger.LogInformation(
                     "ProfilesPlugin: profile {ProfileId} opened with no PIN on {DeviceId}, a device this "
                     + "household uses.",
-                    mapping.ProfileUserId, deviceId);
+                    mapping.ProfileUserId, LogText.Clean(deviceId));
                 return NotByPassword(resolvedUser);
             }
 
@@ -428,7 +428,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a PIN for profile {ProfileId} from device {DeviceId}, which this "
                     + "household has not signed in on.",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 throw Decline();
             }
 

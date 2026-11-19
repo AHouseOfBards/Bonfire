@@ -250,8 +250,8 @@ namespace Jellyfin.Profiles
                     _logger.LogInformation(
                         "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
                         + "server has seen someone sign in on, so the app opens on its PIN field instead.",
-                        qcDevice,
-                        qcClient);
+                        Auth.LogText.Clean(qcDevice),
+                        Auth.LogText.Clean(qcClient));
 
                     // The status and wording Jellyfin returns when Quick Connect is off server-wide, so the
                     // client takes a path it already has.
@@ -514,7 +514,7 @@ namespace Jellyfin.Profiles
             _logger.Log(
                 Auth.SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
                 "ProfilesPlugin: user list requested by device {DeviceId}; profiles not added: {Reason}.",
-                string.IsNullOrWhiteSpace(deviceId) ? "(none)" : deviceId, reason);
+                Auth.LogText.Clean(string.IsNullOrWhiteSpace(deviceId) ? "(none)" : deviceId), reason);
         }
 
         /// <summary>

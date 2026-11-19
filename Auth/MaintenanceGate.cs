@@ -418,7 +418,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 // Fails OPEN, on purpose (r2-17-02): a break only costs a maintenance rule, never a child's
                 // limit. Never the reason a request fails; Jellyfin answers as it would without us.
-                logger.LogWarning(ex, "ProfilesPlugin: the maintenance check failed for {Path}; passing it on.", path);
+                logger.LogWarning(ex, "ProfilesPlugin: the maintenance check failed for {Path}; passing it on.", LogText.Clean(path));
                 return false;
             }
         }
