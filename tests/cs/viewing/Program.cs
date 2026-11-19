@@ -54,6 +54,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 // ─────────────────────────────────────────────────────────────────────────────
 
 int pass = 0;
+Microsoft.Extensions.Logging.ILogger throughLog = NullLogger.Instance;
 var fails = new List<string>();
 void Ok(string name, bool cond, string detail = null)
 {
@@ -798,11 +799,13 @@ async Task<HttpContext> Through(string path, string token, string device)
     ctx.Response.Body = new MemoryStream();
     ctx.RequestServices = new ServiceCollection().AddSingleton<ILibraryManager>(library).BuildServiceProvider();
     var devices = DeviceStub.Create(new Dictionary<string, Guid> { ["tok-kid"] = KID, ["tok-main"] = MAIN });
-    var handled = await (Task<bool>)gate.GetMethod("TryRefuseAsync").Invoke(null, new object[] { ctx, devices, sessions, NullLogger.Instance });
+    var handled = await (Task<bool>)gate.GetMethod("TryRefuseAsync").Invoke(null, new object[] { ctx, devices, sessions, throughLog });
     ctx.Items["handled"] = handled;
     return ctx;
 }
 stub.Messages.Clear();
+var refusalLog = new CaptureLogger();
+throughLog = refusalLog;
 var http = Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().GetResult();
 Ok("over HTTP it is a 403", (bool)http.Items["handled"] && http.Response.StatusCode == 403, http.Response.StatusCode.ToString());
 Ok("with the code in X-Bonfire-Error", http.Response.Headers["X-Bonfire-Error"].ToString() == "daily_limit_reached");
@@ -814,6 +817,11 @@ Ok("the app that asked is told why, in the language the rules were saved in", st
    && !stub.Messages[0].text.Contains("That's all for today"), string.Join(" | ", stub.Messages.Select(m => m.session + ": " + m.text)));
 Through("/Items/" + item + "/PlaybackInfo", "tok-kid", "dev-kid").GetAwaiter().GetResult();
 Ok("once a minute, not once a retry", stub.Messages.Count == 1);
+throughLog = NullLogger.Instance;
+// A report of "it stopped playing" needs the rule in the log; a retry every few seconds must not repeat it.
+Ok("the refusal is in the log once, naming the rule, the device and the app",
+   refusalLog.Lines.Count(l => l.StartsWith("Information") && l.Contains("ProfilesPlugin: playback refused, the daily viewing limit is reached")
+                               && l.Contains("device TV") && l.Contains("client Jellyfin Web")) == 1, string.Join(" | ", refusalLog.Lines));
 http = Through("/Items/" + item + "/PlaybackInfo", "tok-main", "dev-main").GetAwaiter().GetResult();
 Ok("the parent's own request goes through", !(bool)http.Items["handled"]);
 // An internal failure while judging a limited child refuses the request: failing open would let a child past the rule (r2-17-02, g22).

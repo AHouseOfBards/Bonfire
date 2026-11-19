@@ -820,11 +820,7 @@ if (reconcile != null)
     };
     var recordingManager = RecordingUserManager.Create(users, writes);
 
-    var taskLoggerType = typeof(NullLogger<>).MakeGenericType(taskType);
-    var taskLoggerProp = taskLoggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-    var taskLogger = taskLoggerProp != null
-        ? taskLoggerProp.GetValue(null)
-        : Activator.CreateInstance(taskLoggerType, nonPublic: true);
+    var taskLogger = Activator.CreateInstance(typeof(StartLog<>).MakeGenericType(taskType));
 
     var task = Activator.CreateInstance(
         taskType, new StubPaths(tempDir), recordingManager, taskLogger);
@@ -947,6 +943,18 @@ if (reconcile != null)
     catch (Exception e) { startThrew = (e.InnerException ?? e).GetType().Name; }
     mappings.Remove(null);
     Ok("a reconciliation that throws does not stop the server starting", startThrew == null, startThrew);
+
+    // A report starts from one line: versions, size, and which client options are on.
+    StartLines.All.Clear();
+    try { ((System.Threading.Tasks.Task)taskType.GetMethod("StartAsync").Invoke(task, new object[] { System.Threading.CancellationToken.None })).GetAwaiter().GetResult(); }
+    catch (Exception e) { startThrew = (e.InnerException ?? e).GetType().Name; }
+    var startLine = StartLines.All.FirstOrDefault(l => l.Contains("ProfilesPlugin: Bonfire ")) ?? "";
+    Ok("start-up writes one line naming Bonfire's version, Jellyfin's and the runtime",
+       startLine.StartsWith("Information: ") && startLine.Contains(" on Jellyfin ") && startLine.Contains(".NET"), startLine);
+    Ok("and the households, the profiles and the client options that are on",
+       startLine.Contains("households") && startLine.Contains("profiles")
+       && startLine.Contains("PIN sign-in: on") && startLine.Contains("Profiles on sign-in screens: "), startLine);
+    Ok("and it is one line", StartLines.All.Count(l => l.Contains("ProfilesPlugin: Bonfire ")) == 1, string.Join(" | ", StartLines.All));
 
     // Out of the fixture again: the end-state checks below expect Jellyfin's own
     // provider everywhere.
@@ -1604,6 +1612,20 @@ if (fails.Count > 0)
     Environment.Exit(1);
 }
 Console.WriteLine(pass + " passed, 0 failed");
+
+public static class StartLines { public static readonly List<string> All = new(); }
+
+/// <summary>Keeps what the bootstrap task logs, as "Level: text".</summary>
+public sealed class StartLog<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state,
+        Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (StartLines.All) StartLines.All.Add(logLevel + ": " + formatter(state, exception));
+    }
+}
 
 /// <summary>Counts the provider's "too many wrong PINs" refusals: guesses that never reached the comparison.</summary>
 public sealed class CountingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>

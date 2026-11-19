@@ -471,7 +471,8 @@ namespace Jellyfin.Profiles.Auth
                 if (refusal != null)
                 {
                     var (code, state, limited) = refusal.Value;
-                    await ViewingGate.TellRefusedAsync(services.Sessions, acting.ProfileId, null, state, limited, logger).ConfigureAwait(false);
+                    await ViewingGate.TellRefusedAsync(services.Sessions, acting.ProfileId, null, state, limited, logger,
+                        services.Users, session.Device, session.Client).ConfigureAwait(false);
                     await ViewingGate.WriteRefusalAsync(context, code, state).ConfigureAwait(false);
                     return true;
                 }
@@ -1161,6 +1162,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 session.LastWrongOk = key.Id;
                 session.LastWrongOkAt = DateTime.UtcNow;
+                ViewingGate.LogRefused(logger, services.Users, key.ProfileId, "picker: wrong PIN", session.Device, session.Client);
                 return Keypad(session, key.ProfileId, string.Empty, key.Id, Say(session, "notice.picker.wrongPin"));
             }
 
@@ -1200,6 +1202,7 @@ namespace Jellyfin.Profiles.Auth
             var closed = MaintenanceGate.Active();
             if (closed != null && !MaintenanceGate.IsAdmin(services.Users, profileId))
             {
+                ViewingGate.LogRefused(logger, services.Users, profileId, "picker: refused, closed for maintenance", session.Device, session.Client);
                 // The administrator's own words, as everywhere else the server turns someone away, or the
                 // default in the app's language. A tile's name, so text and nothing more.
                 return string.IsNullOrWhiteSpace(closed.Message)
@@ -1224,6 +1227,7 @@ namespace Jellyfin.Profiles.Auth
             if (services.Users.GetUserDto(user, string.Empty).Policy?.IsDisabled == true
                 || Controllers.ProfilesBaseController.MainAccountDisabled(services.Users, mapping))
             {
+                ViewingGate.LogRefused(logger, services.Users, profileId, "picker: refused, the profile or its main account is turned off", session.Device, session.Client);
                 return Say(session, "notice.picker.off");
             }
 

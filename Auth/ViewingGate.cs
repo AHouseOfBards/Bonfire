@@ -215,7 +215,12 @@ namespace Jellyfin.Profiles.Auth
 
                 var deviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
                     request.Headers["Authorization"], request.Headers["X-Emby-Authorization"], "DeviceId");
-                await TellRefusedAsync(sessions, userId, deviceId, refusal.Value.State, refusal.Value.Limited, logger).ConfigureAwait(false);
+                await TellRefusedAsync(sessions, userId, deviceId, refusal.Value.State, refusal.Value.Limited, logger,
+                    context.RequestServices?.GetService(typeof(IUserManager)) as IUserManager,
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        request.Headers["Authorization"], request.Headers["X-Emby-Authorization"], "Device"),
+                    Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                        request.Headers["Authorization"], request.Headers["X-Emby-Authorization"], "Client")).ConfigureAwait(false);
                 await WriteRefusalAsync(context, refusal.Value.Code, refusal.Value.State).ConfigureAwait(false);
                 return true;
             }
@@ -276,9 +281,9 @@ namespace Jellyfin.Profiles.Auth
         /// error. Once a minute per profile: an app retrying should not stack messages.
         /// </summary>
         internal static async Task TellRefusedAsync(
-            ISessionManager? sessions, Guid userId, string? deviceId, ViewingState state, ViewingTracker.Limited limited, ILogger logger)
+            ISessionManager? sessions, Guid userId, string? deviceId, ViewingState state, ViewingTracker.Limited limited, ILogger logger,
+            IUserManager? users = null, string? device = null, string? client = null)
         {
-            if (sessions == null) return;
             var now = ViewingTracker.Now();
             lock (ViewingTracker.UsageLock)
             {
@@ -287,6 +292,13 @@ namespace Jellyfin.Profiles.Auth
                 e.LastRefusalMessageUtc = now;
             }
 
+            // Once a minute per profile, with the message to the app: an app retrying a refused
+            // stream every few seconds would otherwise fill the log with the same line.
+            LogRefused(logger, users, userId, state.Reason == ViewingClock.Limit
+                ? "playback refused, the daily viewing limit is reached"
+                : "playback refused, outside viewing hours", device, client);
+            if (sessions == null) return;
+
             var language = limited.Rules.Language;
             var text = RefusalText(state, limited.Zone, now, language);
             foreach (var s in sessions.Sessions.ToList())
@@ -294,6 +306,24 @@ namespace Jellyfin.Profiles.Auth
                 if (s.UserId != userId) continue;
                 if (!string.IsNullOrEmpty(deviceId) && !string.Equals(s.DeviceId, deviceId, StringComparison.Ordinal)) continue;
                 await ViewingTimer.TellAsync(sessions, s.Id, EmailText.Get("notice.timeUp.header", language), text, 10000, logger).ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>One Information line naming the rule, the profile, its household, and the device and app. Never throws.</summary>
+        internal static void LogRefused(ILogger logger, IUserManager? users, Guid profileId, string rule, string? device, string? client)
+        {
+            try
+            {
+                var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                var profile = !string.IsNullOrEmpty(mapping?.ProfileName) ? mapping!.ProfileName : users?.GetUserById(profileId)?.Username;
+                var main = users?.GetUserById(mapping?.MasterUserId ?? profileId)?.Username;
+                logger.LogInformation(
+                    "ProfilesPlugin: {Rule}: profile {Profile} of {Main}, device {Device}, client {Client}.",
+                    rule, LogText.Clean(profile), LogText.Clean(main), LogText.Clean(device), LogText.Clean(client));
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "ProfilesPlugin: could not describe a refusal.");
             }
         }
 

@@ -1445,17 +1445,46 @@ namespace Jellyfin.Profiles.Controllers
         {
             if (!RateLimiter.Pin.TryBegin(addressKey))
             {
+                LogRefusal("PIN refused, too many wrong tries from this address", profileId);
                 LogLockout(profileId, addressKey);
                 return TooManyAttempts(RateLimiter.Pin, addressKey, "Too many failed PIN attempts.");
             }
 
             if (!PinBudget.TryBegin(profileId))
             {
+                LogRefusal("PIN refused, the account's wrong-PIN allowance is used up", profileId);
                 LogLockout(profileId, profileId.ToString("N"));
                 return TooManyAttempts(PinBudget.RetryAfter(profileId), "Too many failed PIN attempts.");
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// One Information line for a refusal: which rule decided, which profile and household, and
+        /// which device and app asked. Without it a report of "it would not let me in" needs a second
+        /// round to learn which rule it was. Never the PIN. The device and client come from the
+        /// request, so they are cleaned.
+        /// </summary>
+        protected void LogRefusal(string rule, Guid profileId)
+        {
+            try
+            {
+                var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                var profile = !string.IsNullOrEmpty(mapping?.ProfileName)
+                    ? mapping!.ProfileName : _userManager.GetUserById(profileId)?.Username;
+                var main = _userManager.GetUserById(mapping?.MasterUserId ?? profileId)?.Username;
+                _logger.LogInformation(
+                    "ProfilesPlugin: {Rule}: profile {Profile} of {Main}, device {Device}, client {Client}.",
+                    rule, Auth.LogText.Clean(profile), Auth.LogText.Clean(main),
+                    Auth.LogText.Clean(GetAuthorizationParameter("Device")),
+                    Auth.LogText.Clean(GetAuthorizationParameter("Client")));
+            }
+            catch (Exception ex)
+            {
+                // A log line must never turn a refusal into a 500.
+                _logger.LogDebug(ex, "ProfilesPlugin: could not describe a refusal.");
+            }
         }
 
         /// <summary>A PIN locked by too many wrong tries: one Activity log line per lock. Shared with the apps' door, see <see cref="Auth.PinLockout"/>.</summary>

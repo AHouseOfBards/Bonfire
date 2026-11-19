@@ -511,9 +511,53 @@ namespace Jellyfin.Profiles
                 : DefaultProviderIdFallback;
 
 
+        /// <summary>
+        /// One line at start-up with what a bug report needs first: the versions, how big the
+        /// household set-up is, and which client options are on. Counts and switches only, no names,
+        /// and never the configuration itself.
+        /// </summary>
+        private void LogStartup()
+        {
+            try
+            {
+                int households = 0, profiles = 0;
+                bool pinSignIn = false, signInList = false;
+                int proxied = 0;
+                lock (ProfilesBaseController.ConfigLock)
+                {
+                    var config = Plugin.Instance?.Configuration;
+                    if (config != null)
+                    {
+                        var rows = config.Mappings.Where(m => m != null).ToList();
+                        households = rows.Select(m => m.MasterUserId).Distinct().Count();
+                        profiles = rows.Count(m => m.ProfileUserId != m.MasterUserId);
+                        pinSignIn = config.EnableClientPinLogin;
+                        signInList = config.EnableClientProfileList;
+                        proxied = config.ProxyClients?.Count ?? 0;
+                    }
+                }
+
+                _logger.LogInformation(
+                    "ProfilesPlugin: Bonfire {Version} on Jellyfin {Jellyfin}, {Runtime}. {Households} households, "
+                    + "{Profiles} profiles. Profiles on sign-in screens: {SignInList}. PIN sign-in: {PinSignIn}. "
+                    + "Profile picker for {Proxied} app types.",
+                    typeof(ProfilesBootstrapTask).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                        .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion,
+                    typeof(IUserManager).Assembly.GetName().Version,
+                    RuntimeInformation.FrameworkDescription,
+                    households, profiles, signInList ? "on" : "off", pinSignIn ? "on" : "off", proxied);
+            }
+            catch (Exception ex)
+            {
+                // A log line must never stop the server starting.
+                _logger.LogDebug(ex, "ProfilesPlugin: could not write the start-up line.");
+            }
+        }
+
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
+            LogStartup();
             CleanupOldDlls();
 
             // Staged files from writes the last run never finished. An hour, though nothing writes
