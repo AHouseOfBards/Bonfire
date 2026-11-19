@@ -53,8 +53,11 @@ namespace Jellyfin.Profiles.Controllers
             string? newUsername = null;
             if (request.ProfileName != null)
             {
+                // The main account's name only for a rename: one a profile already has stays
+                // editable (see UpdateProfile).
+                var renamed = !string.Equals(mapping.ProfileName?.Trim(), request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase);
                 var nameError = ValidateProfileName(request.ProfileName)
-                    ?? ValidateNotMainAccountName(request.ProfileName, mainUser.Username);
+                    ?? (renamed ? ValidateNotMainAccountName(request.ProfileName, mainUser.Username) : null);
                 if (nameError != null) return BadRequest(nameError);
                 newName = request.ProfileName.Trim();
                 newUsername = $"{mainUser.Username}_{newName.Replace(" ", "")}";

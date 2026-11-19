@@ -381,6 +381,20 @@ r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Kidd
 Ok("the main account sets it a new PIN", r.status == 200, r.status + " " + r.message);
 Ok("and the lock is gone", BudgetOpen());
 
+// ── A profile already named like its main account ────────────────────────────
+// 2.0.1 refuses a new profile named like its main account. One that already is (named
+// before the rule, or an adopted account) must still save everything else with its name
+// unchanged: the rule ran on every save, so it could not be edited until renamed.
+Console.WriteLine();
+Set(kidRow, "ProfileName", "Home");
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Home\",\"avatarColor\":\"#22C55E\"}", KID);
+Ok("a profile already named like its main account saves its own colour", r.status == 200, r.status + " " + r.message);
+r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Home\",\"masterPin\":\"" + PIN + "\",\"pin\":\"8888\"}", MAIN);
+Ok("and its main account can still set it a PIN", r.status == 200, r.status + " " + r.message);
+Set(kidRow, "ProfileName", "Kiddo");
+r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Home\",\"masterPin\":\"" + PIN + "\"}", MAIN);
+Ok("but renaming one to its main account's name is still refused", r.status == 400 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
+
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();
 if (fails.Count > 0)

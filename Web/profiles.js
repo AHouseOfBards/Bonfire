@@ -4260,10 +4260,15 @@
             // pageContainerCount), so after leaving the player its page stays behind, hidden,
             // until two more pages have opened. Counted anyway, it held every page in
             // 'videoosd' and the switcher stayed hidden after backing out of a video (#48).
-            const osdEl = document.querySelector(
+            // Every match, not the first: a page left behind can come before the one on screen.
+            // Still one query, and empty on nearly every tick.
+            const osdEls = document.querySelectorAll(
                 '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
-            const hasOsdDom = !!osdEl && !osdEl.closest('.mainAnimatedPage.hide');
+            let hasOsdDom = false;
+            for (let i = 0; i < osdEls.length; i++) {
+                if (!osdEls[i].closest('.mainAnimatedPage.hide')) { hasOsdDom = true; break; }
+            }
 
             // ── Admin / server-management pages ─────────────────────────────────
             // Exception: our own settings page (configurationpage?name=Bonfire), the only
@@ -10775,8 +10780,8 @@
                 const ask = like ? `
                             <span class="jpf-device-lookalike" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.85rem;">
                                 <span>${t('profileForm.lookAlike', { name: escapeHtml(deviceListName(like)) })}</span>
-                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-same-btn" data-id="${escapeHtml(id)}" data-into="${escapeHtml(likeId)}" style="padding: 2px 12px !important; margin: 0 !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeSame')}</button>
-                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-different-btn" data-id="${escapeHtml(id)}" data-other="${escapeHtml(likeId)}" style="padding: 2px 12px !important; margin: 0 !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeDifferent')}</button>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-same-btn" data-id="${escapeHtml(id)}" data-into="${escapeHtml(likeId)}" style="padding: 2px 12px !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeSame')}</button>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-different-btn" data-id="${escapeHtml(id)}" data-other="${escapeHtml(likeId)}" style="padding: 2px 12px !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeDifferent')}</button>
                             </span>` : '';
                 return `
                     <div class="jpf-device-dropdown-item" data-device-id="${escapeHtml(id)}" data-device-detail="${escapeHtml(t('profileForm.deviceLastSeen', { client: client, date: seenStr }))}">

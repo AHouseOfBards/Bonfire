@@ -754,6 +754,18 @@ const onPlayer = settled({ present: { '.videoOsdBottom, .osdControls, .upNextCon
 onPlayer.plugin.checkRoute();
 ok('and the same OSD on the page being shown still is (' + onPlayer.plugin._lastRouteType + ')',
    onPlayer.plugin._lastRouteType === 'videoosd');
+// A second video within two pages: the old player's page, hidden, can come before the live
+// one in document order, so the first match alone would answer "not playing".
+const OSD_Q = '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo';
+const twoPlayers = settled({});
+const staleThenLive = [inPage(['mainAnimatedPage', 'page', 'hide']), inPage(['mainAnimatedPage', 'page'])];
+const qsa = twoPlayers.sandbox.document.querySelectorAll;
+const qs = twoPlayers.sandbox.document.querySelector;
+twoPlayers.sandbox.document.querySelectorAll = sel => sel === OSD_Q ? staleThenLive : qsa(sel);
+twoPlayers.sandbox.document.querySelector = sel => sel === OSD_Q ? staleThenLive[0] : qs(sel);
+twoPlayers.plugin.checkRoute();
+ok('a hidden old player ahead of the live one still reads as playback (' + twoPlayers.plugin._lastRouteType + ')',
+   twoPlayers.plugin._lastRouteType === 'videoosd');
 
 // The Dashboard -> Users list is the one route that asks the server something from the
 // tick, guarded by the address changing. The guard is a string compare; losing it would

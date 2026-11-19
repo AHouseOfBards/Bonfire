@@ -2251,7 +2251,11 @@ namespace Jellyfin.Profiles.Controllers
             // changed the picture (ST-11).
             if (request.ProfileId != masterUserId)
             {
-                var mainNameError = ValidateNotMainAccountName(request.ProfileName, masterUser.Username);
+                // Only a new name. A profile already named like its main account (made before this
+                // check, or an adopted account) must still save its PIN, picture and limits, the way
+                // the username check below lets an unchanged name through.
+                var renamed = !string.Equals(existingMapping?.ProfileName?.Trim(), request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase);
+                var mainNameError = renamed ? ValidateNotMainAccountName(request.ProfileName, masterUser.Username) : null;
                 if (mainNameError != null) return BadRequest(mainNameError);
 
                 var wantedUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";

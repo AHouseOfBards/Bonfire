@@ -1901,14 +1901,43 @@ namespace Jellyfin.Profiles.Controllers
         internal const int SameBrowserPrefix = 32;
 
         /// <summary>
-        /// Whether two device ids are one browser's: jellyfin-web ids sharing at least
-        /// <see cref="SameBrowserPrefix"/> characters, so byte-identical user agents. See
-        /// <see cref="GroupLikelyDuplicates"/>.
+        /// Whether two device ids are one browser's: two jellyfin-web ids
+        /// (base64 of user agent + "|" + time) whose user agents are byte for byte the same.
+        /// <para>
+        /// This compared <see cref="SameBrowserPrefix"/> characters, which is 24 bytes of user
+        /// agent: "Mozilla/5.0 (Windows NT ". Every Windows Chrome in a household matched, whatever
+        /// its version, and MergeSameDevices folded them into one row. The whole user agent is
+        /// decoded and compared instead. An id that is not jellyfin-web's never matches.
+        /// </para>
         /// </summary>
         internal static bool SameBrowserIds(string? a, string? b)
-            => !string.IsNullOrEmpty(a) && !string.IsNullOrEmpty(b)
-               && !string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
-               && FirstDifferingIndex(new[] { a!, b! }) >= SameBrowserPrefix;
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) || string.Equals(a, b, StringComparison.Ordinal)) return false;
+            var uaA = WebIdUserAgent(a);
+            return uaA != null && string.Equals(uaA, WebIdUserAgent(b), StringComparison.Ordinal);
+        }
+
+        /// <summary>The user agent inside a jellyfin-web device id, or null if it is not one.</summary>
+        /// <remarks>
+        /// components/apphost.js: <c>btoa(userAgent + '|' + Date.now()).replaceAll('=', '1')</c>.
+        /// The padding turned into '1' is still valid base64, so the id decodes as it is, and only the
+        /// last byte or two of the time come out wrong. The time is 13 digits, so the user agent ahead
+        /// of the '|' is intact, and ten digits after it are enough to know the shape.
+        /// </remarks>
+        private static string? WebIdUserAgent(string id)
+        {
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(id); }
+            catch (FormatException) { return null; }
+            var text = System.Text.Encoding.UTF8.GetString(bytes);
+            var bar = text.LastIndexOf('|');
+            if (bar <= 0 || text.Length - bar - 1 < 10) return null;
+            for (var i = bar + 1; i <= bar + 10; i++)
+            {
+                if (text[i] < '0' || text[i] > '9') return null;
+            }
+            return text.Substring(0, bar);
+        }
 
         /// <summary>
         /// The name and app two records must share to be one device: the name as typed, ignoring case,

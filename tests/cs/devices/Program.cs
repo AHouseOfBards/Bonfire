@@ -404,7 +404,8 @@ Console.WriteLine("── One device that got a new id is one row ────�
     //     origins is two ids sharing a long prefix, both in use. Neither the time rule nor a
     //     derivation joins those, which is what the button was for.
     {
-        string WebId(string ua, long ms) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(ua + "|" + ms));
+        // components/apphost.js generateDeviceId: btoa(keys.join('|')).replaceAll('=', '1').
+        string WebId(string ua, long ms) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(ua + "|" + ms)).Replace("=", "1");
         const string Ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36";
         const string Web = "Jellyfin Web";
 
@@ -443,6 +444,16 @@ Console.WriteLine("── One device that got a new id is one row ────�
         See(h2.Cfg, WebId(Ua.Replace("Windows NT 10.0", "Macintosh; Intel"), 1761000000000), "Chrome", Web, h2.Master, t0.AddHours(1));
         Merge(h2.Cfg, h2.Master, t0.AddHours(3));
         Ok("two different browsers named Chrome stay two rows (" + h2.List.Count + ")", h2.List.Count == 2);
+
+        // The same OS, one browser version apart: two machines, or one updated while another was
+        // not. The rule compared 32 characters, 24 bytes of user agent ("Mozilla/5.0 (Windows NT "),
+        // so every Windows Chrome in a household was one row; these two ids share 121 characters.
+        var h2b = Household(1);
+        See(h2b.Cfg, WebId(Ua.Replace("Chrome/142", "Chrome/141"), 1760000000000), "Chrome", Web, h2b.Master, t0);
+        See(h2b.Cfg, WebId(Ua, 1761000000000), "Chrome", Web, h2b.Master, t0.AddHours(1));
+        See(h2b.Cfg, WebId(Ua.Replace("Chrome/142", "Chrome/141"), 1760000000000), "Chrome", Web, h2b.Master, t0.AddHours(2));
+        Merge(h2b.Cfg, h2b.Master, t0.AddHours(3));
+        Ok("two Windows Chromes a version apart stay two rows (" + h2b.List.Count + ")", h2b.List.Count == 2);
 
         // Never a row a profile is limited to: two people's identical laptops would match too.
         var h3 = Household(1);
