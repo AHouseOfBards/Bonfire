@@ -4254,9 +4254,16 @@
             // (.videoOsdBottom is the element [class*="videoOsd"] was reaching for).
             // Verified against jellyfin-web 10.11 src/controllers/playback/video/index.html
             // and recorded in tests/upstream-selectors.json.
-            const hasOsdDom = !!document.querySelector(
+            //
+            // Only an OSD on the page being shown counts. jellyfin-web keeps the last three
+            // pages in the DOM and hides the others with .hide (components/viewContainer.js,
+            // pageContainerCount), so after leaving the player its page stays behind, hidden,
+            // until two more pages have opened. Counted anyway, it held every page in
+            // 'videoosd' and the switcher stayed hidden after backing out of a video (#48).
+            const osdEl = document.querySelector(
                 '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
+            const hasOsdDom = !!osdEl && !osdEl.closest('.mainAnimatedPage.hide');
 
             // ── Admin / server-management pages ─────────────────────────────────
             // Exception: our own settings page (configurationpage?name=Bonfire), the only

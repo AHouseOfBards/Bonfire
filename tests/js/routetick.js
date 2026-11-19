@@ -715,7 +715,7 @@ ok('and once it has arrived it is not asked for again (' + artDoneCalls + ')', a
 // Playback seen from the DOM alone: the URL says nothing, the OSD appears. The poll exists
 // for this, and only the URL route to 'videoosd' was exercised, so the OSD query could be
 // answered and ignored.
-const osdOnly = settled({ present: { '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo': { tagName: 'DIV' } } });
+const osdOnly = settled({ present: { '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo': { tagName: 'DIV', closest: () => null } } });
 osdOnly.plugin.checkRoute();
 ok('an OSD in the DOM on an ordinary URL is classified as playback (' + osdOnly.plugin._lastRouteType + ')',
    osdOnly.plugin._lastRouteType === 'videoosd');
@@ -723,6 +723,37 @@ const noOsd = settled({});
 noOsd.plugin.checkRoute();
 ok('and without one the same URL is home (' + noOsd.plugin._lastRouteType + ')',
    noOsd.plugin._lastRouteType === 'home');
+
+// Issue #48. jellyfin-web keeps the last three pages in the DOM and hides the rest with
+// .hide (components/viewContainer.js). Backing out of a video leaves the player's page
+// there, hidden, with its OSD inside it, and the switcher stayed hidden on every page
+// until two more had opened. Seen in Chrome against a real 10.11.11 server: after
+// history.back() the pages were indexPage [hide], itemDetailPage, videoOsdPage [hide].
+//
+// The parent chain is modelled and closest() walks it, matching class selectors only, so
+// a check written some other way fails loudly instead of answering a question nobody
+// asked.
+function inPage(pageClasses) {
+    const page = { classes: new Set(pageClasses), parentElement: null };
+    const osd = { tagName: 'DIV', classes: new Set(['videoOsdBottom']), parentElement: page };
+    osd.closest = function (sel) {
+        if (!/^(\.[A-Za-z][\w-]*)+$/.test(sel)) throw new Error('closest() model takes class selectors only: ' + sel);
+        const want = sel.slice(1).split('.');
+        for (let n = osd; n; n = n.parentElement) {
+            if (want.every(function (c) { return n.classes.has(c); })) return n;
+        }
+        return null;
+    };
+    return osd;
+}
+const leftPlayer = settled({ present: { '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo': inPage(['mainAnimatedPage', 'page', 'hide']) } });
+leftPlayer.plugin.checkRoute();
+ok('an OSD left behind in a hidden page is not playback: the page shown is home ('
+   + leftPlayer.plugin._lastRouteType + ')', leftPlayer.plugin._lastRouteType === 'home');
+const onPlayer = settled({ present: { '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo': inPage(['mainAnimatedPage', 'page']) } });
+onPlayer.plugin.checkRoute();
+ok('and the same OSD on the page being shown still is (' + onPlayer.plugin._lastRouteType + ')',
+   onPlayer.plugin._lastRouteType === 'videoosd');
 
 // The Dashboard -> Users list is the one route that asks the server something from the
 // tick, guarded by the address changing. The guard is a string compare; losing it would
