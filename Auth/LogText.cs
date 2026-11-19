@@ -15,11 +15,17 @@ namespace Jellyfin.Profiles.Auth
     /// </summary>
     internal static class LogText
     {
-        private const int MaxLength = 120;
+        /// <summary>
+        /// The longest device id the plugin records. Not shorter: a browser's id is about 170
+        /// characters and a television browser's can pass 250, and the part that tells two of them
+        /// apart is the time at the end. A log cut at 120 would show every browser as the same
+        /// device, in exactly the reports that need to tell them apart.
+        /// </summary>
+        private const int MaxLength = DeviceRegistry.MaxDeviceIdLength;
 
         /// <summary>
         /// Every control character and the Unicode line and paragraph separators become '?', the
-        /// text is cut at 120 characters with an ellipsis, and null reads "(none)".
+        /// text is cut at <see cref="MaxLength"/> characters with an ellipsis, and null reads "(none)".
         /// </summary>
         public static string Clean(string? text)
         {
