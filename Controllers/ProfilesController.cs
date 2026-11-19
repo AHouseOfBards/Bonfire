@@ -1682,7 +1682,7 @@ namespace Jellyfin.Profiles.Controllers
 
             _logger.LogInformation(
                 "ProfilesPlugin: administrator signed out {UserId} on device {DeviceId}.",
-                request.UserId, request.DeviceId);
+                request.UserId, Auth.LogText.Clean(request.DeviceId));
 
             return Ok(new { signedOut = devices.Count });
         }
@@ -4689,8 +4689,8 @@ namespace Jellyfin.Profiles.Controllers
                 "ProfilesPlugin: EMERGENCY DISABLE activated from {Ip} (device '{Device}', client '{Client}'). " +
                 "The profile switcher is now inert and will stay that way until Jellyfin is restarted.",
                 ip,
-                GetAuthorizationParameter("Device") ?? "unknown",
-                GetAuthorizationParameter("Client") ?? "unknown");
+                Auth.LogText.Clean(GetAuthorizationParameter("Device") ?? "unknown"),
+                Auth.LogText.Clean(GetAuthorizationParameter("Client") ?? "unknown"));
 
             LogActivity("Bonfire was switched off with the emergency code", "EmergencyDisable", Guid.Empty,
                 "From " + ip + ". It stays off until Jellyfin restarts.", LogLevel.Error);

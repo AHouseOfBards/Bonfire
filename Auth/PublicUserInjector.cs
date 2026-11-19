@@ -103,7 +103,7 @@ namespace Jellyfin.Profiles.Auth
                     SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
                     "ProfilesPlugin: user list requested by device {DeviceId}, which nobody has signed in on yet. "
                     + "Sign in as the account that owns the profiles once on this device.",
-                    deviceId);
+                    LogText.Clean(deviceId));
                 return none;
             }
 
@@ -134,7 +134,7 @@ namespace Jellyfin.Profiles.Auth
                     SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
                     "ProfilesPlugin: user list requested by device {DeviceId}, last used by {UserId} "
                     + "(per {Source}), which is not a Bonfire account. Nothing added.",
-                    deviceId, seenUserId, seenFrom);
+                    LogText.Clean(deviceId), seenUserId, seenFrom);
                 return none;
             }
 
@@ -162,7 +162,7 @@ namespace Jellyfin.Profiles.Auth
                 logger?.LogInformation(
                     "ProfilesPlugin: profile {Profile} ({UserId}) is not offered on device {DeviceId}: "
                     + "limited to particular devices and {Reason}.",
-                    m.ProfileName, m.ProfileUserId, deviceId, DescribeDenial(access));
+                    m.ProfileName, m.ProfileUserId, LogText.Clean(deviceId), DescribeDenial(access));
             }
 
             // The sign-in that follows hashes the typed name with THIS id, and the id is not on record
@@ -177,7 +177,7 @@ namespace Jellyfin.Profiles.Auth
             logger?.LogInformation(
                 "ProfilesPlugin: user list requested by device {DeviceId}; resolved via {Source} to the "
                 + "household of {MasterId} with {Count} member(s).",
-                deviceId, seenFrom, masterId, household.Count);
+                LogText.Clean(deviceId), seenFrom, masterId, household.Count);
 
             return household;
         }

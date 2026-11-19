@@ -229,7 +229,7 @@ namespace Jellyfin.Profiles.Auth
                 // Nobody is limited, so no rule is kept by refusing: a break here only noted a
                 // PlaybackInfo, and refusing it told everyone, administrators included, that it was
                 // outside viewing hours (r3-01-02).
-                logger.LogWarning(ex, "ProfilesPlugin: noting a playback for {Path} failed; passing it on.", path);
+                logger.LogWarning(ex, "ProfilesPlugin: noting a playback for {Path} failed; passing it on.", LogText.Clean(path));
                 return false;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
@@ -237,7 +237,7 @@ namespace Jellyfin.Profiles.Auth
                 // Fails CLOSED (r2-17-02): a broken check must not let a limited child past the
                 // rule. MaintenanceGate and ProxySwitcher fail open, where a break only costs a
                 // rule.
-                logger.LogError(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; refusing it.", path);
+                logger.LogError(ex, "ProfilesPlugin: the viewing-hours check failed for {Path}; refusing it.", LogText.Clean(path));
                 var response = context.Response;
                 response.StatusCode = StatusCodes.Status403Forbidden;
                 response.ContentType = "text/plain; charset=utf-8";

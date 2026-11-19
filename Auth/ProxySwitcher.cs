@@ -119,13 +119,13 @@ namespace Jellyfin.Profiles.Auth
                 // carries the main token, and passing it on would hand that over.
                 if (MustNotFallThrough(context.Request))
                 {
-                    logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; refusing it.", context.Request.Path);
+                    logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; refusing it.", LogText.Clean(context.Request.Path));
                     context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                     return true;
                 }
 
                 // Fails open on purpose (r2-17-02): only requests that cannot hand over the main account reach this line.
-                logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; passing it on.", context.Request.Path);
+                logger.LogWarning(ex, "ProfilesPlugin: the profile picker could not handle {Path}; passing it on.", LogText.Clean(context.Request.Path));
                 return false;
             }
         }
@@ -253,7 +253,7 @@ namespace Jellyfin.Profiles.Auth
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogWarning(ex, "ProfilesPlugin: could not sign {Client} on {Device} out of the main account; refusing it until it can be.", session.Client, session.Device);
+                logger.LogWarning(ex, "ProfilesPlugin: could not sign {Client} on {Device} out of the main account; refusing it until it can be.", LogText.Clean(session.Client), LogText.Clean(session.Device));
             }
 
             if (signedOut)
@@ -263,7 +263,7 @@ namespace Jellyfin.Profiles.Auth
                 Sessions.TryRemove(session.MasterToken, out _);
                 logger.LogInformation(
                     "ProfilesPlugin: {Client} on {Device} was in a child's profile and Bonfire can no longer hold it there; it is signed out.",
-                    session.Client, session.Device);
+                    LogText.Clean(session.Client), LogText.Clean(session.Device));
             }
 
             if (!context.Response.HasStarted) context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -456,7 +456,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 logger.LogInformation(
                     "ProfilesPlugin: closed for maintenance; {Client} on {Device} is back at the picker.",
-                    session.Client, session.Device);
+                    LogText.Clean(session.Client), LogText.Clean(session.Device));
                 await LeaveAsync(session, services, logger).ConfigureAwait(false);
                 config ??= Controllers.ProfilesBaseController.ReadConfigSnapshot();
                 return await AnswerPickerAsync(context, session, route, config, services, forward).ConfigureAwait(false);
@@ -611,7 +611,7 @@ namespace Jellyfin.Profiles.Auth
                 {
                     logger.LogInformation(
                         "ProfilesPlugin: {Client} on {Device} was signed out in Jellyfin; ending its profile picker.",
-                        session.Client, session.Device);
+                        LogText.Clean(session.Client), LogText.Clean(session.Device));
                 }
 
                 return Task.FromResult(valid);
@@ -702,7 +702,7 @@ namespace Jellyfin.Profiles.Auth
             session = Sessions.GetOrAdd(token, session);
             logger.LogInformation(
                 "ProfilesPlugin: {Client} on {Device} signed in as a main account; serving it the profile picker.",
-                session.Client, session.Device);
+                LogText.Clean(session.Client), LogText.Clean(session.Device));
             return session;
         }
 
@@ -1212,7 +1212,7 @@ namespace Jellyfin.Profiles.Auth
             if (access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
                 && access != Controllers.ProfilesBaseController.DeviceAccess.Allowed)
             {
-                logger.LogWarning("ProfilesPlugin: the picker refused profile {ProfileId} on device {DeviceId} ({Reason}).", profileId, session.DeviceId, access);
+                logger.LogWarning("ProfilesPlugin: the picker refused profile {ProfileId} on device {DeviceId} ({Reason}).", profileId, LogText.Clean(session.DeviceId), access);
                 return Say(session, "notice.picker.device");
             }
 
@@ -1292,7 +1292,7 @@ namespace Jellyfin.Profiles.Auth
 
             logger.LogInformation(
                 "ProfilesPlugin: {Client} on {Device} opened profile {Profile} from the picker.",
-                session.Client, session.Device, user.Username);
+                LogText.Clean(session.Client), LogText.Clean(session.Device), user.Username);
             return null;
         }
 

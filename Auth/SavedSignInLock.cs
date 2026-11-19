@@ -163,7 +163,7 @@ namespace Jellyfin.Profiles.Auth
                             "ProfilesPlugin: {Profile} has a PIN, so its saved sign-in on {DeviceId} was cleared "
                             + "as the sign-in screen opened. The app will ask for the PIN.",
                             string.IsNullOrEmpty(target.Name) ? target.UserId.ToString("N") : target.Name,
-                            row.DeviceId);
+                            LogText.Clean(row.DeviceId));
                     }
                 }
             }
@@ -172,7 +172,7 @@ namespace Jellyfin.Profiles.Auth
                 logger.LogWarning(ex,
                     "ProfilesPlugin: could not clear saved sign-ins on device {DeviceId}; the app may open a "
                     + "PIN-protected profile without asking.",
-                    deviceId);
+                    LogText.Clean(deviceId));
             }
 
             return revoked;

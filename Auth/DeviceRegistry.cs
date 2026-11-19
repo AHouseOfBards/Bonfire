@@ -708,7 +708,7 @@ namespace Jellyfin.Profiles.Auth
                     {
                         logger?.LogWarning(
                             "ProfilesPlugin: a household is at its limit of {Max} devices and every one is on a device list, so {DeviceId} was not recorded.",
-                            MaxDevicesPerHousehold, deviceId);
+                            MaxDevicesPerHousehold, LogText.Clean(deviceId));
                         return false;
                     }
 
@@ -719,7 +719,7 @@ namespace Jellyfin.Profiles.Auth
                 {
                     logger?.LogWarning(
                         "ProfilesPlugin: the server is at its limit of {Max} known devices, so {DeviceId} was not recorded.",
-                        MaxKnownDevices, deviceId);
+                        MaxKnownDevices, LogText.Clean(deviceId));
                     return false;
                 }
 
