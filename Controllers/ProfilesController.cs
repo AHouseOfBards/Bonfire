@@ -896,6 +896,7 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogWarning(
                     "ProfilesPlugin: Blocked Bonfire switch from {Caller} into unprotected account {Target}.",
                     callerMasterUserId, request.ProfileId);
+                LogRefusal("Switch refused, the account is not one this caller may open", request.ProfileId);
                 return BadRequest(rules.Refusal);
             }
 
@@ -921,9 +922,7 @@ namespace Jellyfin.Profiles.Controllers
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: device check refused a switch into {ProfileId} ({Reason}).",
-                    request.ProfileId, deviceAccess);
+                LogRefusal("Switch refused by the device check (" + deviceAccess + ")", request.ProfileId);
                 return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
@@ -959,6 +958,7 @@ namespace Jellyfin.Profiles.Controllers
                     // mapping is non-null here: pinHashToCheck came from it.
                     if (!VerifyPinAndUpgrade(request.Pin, mapping!))
                     {
+                        LogRefusal("Switch refused, wrong PIN", request.ProfileId);
                         return BadRequest("Invalid PIN code.");
                     }
 
@@ -982,9 +982,7 @@ namespace Jellyfin.Profiles.Controllers
             // fallback.
             if (_userManager.GetUserDto(targetUser, string.Empty).Policy?.IsDisabled == true)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: refused a switch into {ProfileId}, whose account is disabled.",
-                    request.ProfileId);
+                LogRefusal("Switch refused, the profile's account is turned off", request.ProfileId);
                 return BadRequest("This profile's account is turned off on the server.");
             }
 
@@ -992,9 +990,7 @@ namespace Jellyfin.Profiles.Controllers
             // turned off, so its profiles stayed enterable (R-1135).
             if (MainAccountDisabled(_userManager, mapping))
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: refused a switch into {ProfileId}, whose main account is disabled.",
-                    request.ProfileId);
+                LogRefusal("Switch refused, the main account is turned off", request.ProfileId);
                 return BadRequest("This profile's main account is turned off on the server.");
             }
 
@@ -1188,9 +1184,7 @@ namespace Jellyfin.Profiles.Controllers
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: device check refused a PIN verification for {ProfileId} ({Reason}).",
-                    request.ProfileId, deviceAccess);
+                LogRefusal("PIN check refused by the device check (" + deviceAccess + ")", request.ProfileId);
                 return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
@@ -1210,6 +1204,7 @@ namespace Jellyfin.Profiles.Controllers
 
             if (rules.Refusal != null)
             {
+                LogRefusal("PIN check refused, the account is not one this caller may open", request.ProfileId);
                 return BadRequest(rules.Refusal);
             }
 
@@ -1223,6 +1218,7 @@ namespace Jellyfin.Profiles.Controllers
 
                 if (!VerifyPinAndUpgrade(request.Pin, target))
                 {
+                    LogRefusal("PIN check refused, wrong PIN", request.ProfileId);
                     return BadRequest("Invalid PIN.");
                 }
 

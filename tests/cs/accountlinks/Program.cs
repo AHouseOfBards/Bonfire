@@ -177,7 +177,7 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
         : p.ParameterType == typeof(MediaBrowser.Controller.Devices.IDeviceManager) ? DeviceStub.Create()
         : p.ParameterType == typeof(INetworkManager) ? NetworkStub.Create()
         : p.ParameterType == typeof(ILibraryManager) ? Loose<ILibraryManager>.Create()
-        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType))
+        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(CallLog<>).MakeGenericType(ctrlType))
         : (object)null).ToArray();
     var c = (ControllerBase)ctor.Invoke(args);
     var http = new DefaultHttpContext
@@ -445,8 +445,14 @@ Ok("the household's own still are, unmarked", Tile(KID) != null && !(bool)P(Tile
 
 r = Call("SwitchProfile", HOME, B(("ProfileId", DAD)));
 Ok("/switch opens an added account with no PIN", r.status == 200 && sessionStub.Opened.Contains(DAD), Text(r));
-r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "0000")));
+CallLines.All.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "0000")), deviceId: "den-tv");
 Ok("one with a PIN refuses the wrong one", r.status == 400 && !sessionStub.Opened.Contains(MUM), Text(r));
+// A report of "it would not let me in" is answered by this line: the rule, who, and which app.
+var refusal = CallLines.All.FirstOrDefault(l => l.Contains("wrong PIN")) ?? "";
+Ok("and the log says it was the wrong PIN, at Information", refusal.StartsWith("Information: ProfilesPlugin: Switch refused, wrong PIN"), string.Join(" | ", CallLines.All));
+Ok("naming the device and the app that asked", refusal.Contains("Firefox") && refusal.Contains("Jellyfin Web"), refusal);
+Ok("and never the PIN", !CallLines.All.Any(l => l.Contains("0000")), string.Join(" | ", CallLines.All));
 r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "4321")));
 Ok("and opens with the right one", r.status == 200 && sessionStub.Opened.Contains(MUM), Text(r));
 r = Call("SwitchProfile", OTHER, B(("ProfileId", DAD)));
@@ -458,7 +464,9 @@ Ok("and the added account sees nothing of the household", Refused(r), Text(r));
 // checked only the target's own account, and a profile's is never the one that was turned off.
 var kidOpened = sessionStub.Opened.Count(x => x == KID);
 world.Disabled.Add(HOME);
-r = Call("SwitchProfile", HOME, B(("ProfileId", KID)));
+CallLines.All.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", KID)), deviceId: "den-tv");
+Ok("and the log names that rule, not a bare id", CallLines.All.Any(l => l.StartsWith("Information: ProfilesPlugin: Switch refused, the main account is turned off")), string.Join(" | ", CallLines.All));
 Ok("a profile whose main account is turned off cannot be entered", r.status == 400 && sessionStub.Opened.Count(x => x == KID) == kidOpened, Text(r));
 Ok("and says the account is turned off, so the app can show why", Text(r).Contains("account is turned off"), Text(r));
 world.Disabled.Remove(HOME);
@@ -936,6 +944,20 @@ try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
 // ── A modelled Jellyfin ────────────────────────────────────────────────────
+
+// What the controller logged across every Call, as "Level: text". Kept so a refusal can be asked
+// which rule decided it, which is what a bug report has to answer.
+public static class CallLines { public static readonly List<string> All = new(); }
+
+public sealed class CallLog<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (CallLines.All) CallLines.All.Add(logLevel + ": " + formatter(state, exception));
+    }
+}
 
 public sealed class CaptureLog : Microsoft.Extensions.Logging.ILogger
 {

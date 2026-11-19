@@ -158,3 +158,7 @@ include:
 - the browser, app or TV model
 - the text from **Dashboard → Plugins → Bonfire → Troubleshoot → Copy report**
 - whether the server has been restarted since installing or updating
+- the server log lines that start `ProfilesPlugin:` from around the time it went wrong,
+  and the one from the last server start that begins `ProfilesPlugin: Bonfire`. A refused
+  switch or PIN says which rule refused it, for which profile, on which device. No line
+  holds a PIN, password or token.
