@@ -1470,10 +1470,17 @@ namespace Jellyfin.Profiles.Controllers
         {
             try
             {
-                var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-                var profile = !string.IsNullOrEmpty(mapping?.ProfileName)
-                    ? mapping!.ProfileName : _userManager.GetUserById(profileId)?.Username;
-                var main = _userManager.GetUserById(mapping?.MasterUserId ?? profileId)?.Username;
+                // Read under the lock: a save on another thread can change the list mid-search.
+                string? name;
+                Guid? masterId;
+                lock (ConfigLock)
+                {
+                    var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                    name = mapping?.ProfileName;
+                    masterId = mapping?.MasterUserId;
+                }
+                var profile = !string.IsNullOrEmpty(name) ? name : _userManager.GetUserById(profileId)?.Username;
+                var main = _userManager.GetUserById(masterId ?? profileId)?.Username;
                 _logger.LogInformation(
                     "ProfilesPlugin: {Rule}: profile {Profile} of {Main}, device {Device}, client {Client}.",
                     rule, Auth.LogText.Clean(profile), Auth.LogText.Clean(main),

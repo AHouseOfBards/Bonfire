@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
 using Jellyfin.Profiles.Configuration;
+using Jellyfin.Profiles.Controllers;
 using Jellyfin.Profiles.Mail;
 using MediaBrowser.Controller.Devices;
 using MediaBrowser.Controller.Library;
@@ -314,9 +315,17 @@ namespace Jellyfin.Profiles.Auth
         {
             try
             {
-                var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
-                var profile = !string.IsNullOrEmpty(mapping?.ProfileName) ? mapping!.ProfileName : users?.GetUserById(profileId)?.Username;
-                var main = users?.GetUserById(mapping?.MasterUserId ?? profileId)?.Username;
+                // Read under the lock: a save on another thread can change the list mid-search.
+                string? name;
+                Guid? masterId;
+                lock (ProfilesBaseController.ConfigLock)
+                {
+                    var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                    name = mapping?.ProfileName;
+                    masterId = mapping?.MasterUserId;
+                }
+                var profile = !string.IsNullOrEmpty(name) ? name : users?.GetUserById(profileId)?.Username;
+                var main = users?.GetUserById(masterId ?? profileId)?.Username;
                 logger.LogInformation(
                     "ProfilesPlugin: {Rule}: profile {Profile} of {Main}, device {Device}, client {Client}.",
                     rule, LogText.Clean(profile), LogText.Clean(main), LogText.Clean(device), LogText.Clean(client));

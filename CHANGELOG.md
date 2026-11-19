@@ -9,6 +9,22 @@ See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
 
+## 2.1.0  — 2026-11-19
+
+**Fixed**
+
+- TV sign-in screens, the device list, themes and the profile button. (#42, #46, #48)
+- Security fixes. Updating is recommended.
+
+**Changed**
+
+- Profiles show on TV sign-in screens on a new install, and duplicate devices merge on their own.
+- The log says more, to help with bug reports.
+
+**Added**
+
+- A Moonfin theme, and more settings for apps with Bonfire built in.
+
 ## 2.0.1-beta  — 2026-11-16
 
 **Fixed**
