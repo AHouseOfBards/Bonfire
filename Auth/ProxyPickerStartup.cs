@@ -26,6 +26,7 @@ namespace Jellyfin.Profiles.Auth
             _services = services;
             _logger = logger;
             PickerMarks.Log = logger;
+            DeviceRegistry.Log = logger;
         }
 
         public Task StartAsync(CancellationToken cancellationToken)

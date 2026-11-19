@@ -458,6 +458,11 @@ namespace Jellyfin.Profiles.Auth
 
             if (result != PinHasher.PinResult.Match)
             {
+                // Never the PIN. At most five a quarter hour per account (BeginPinAttempt above).
+                _logger.LogInformation(
+                    "ProfilesPlugin: wrong PIN for profile {ProfileId} on a client, from device {DeviceId}.",
+                    mapping.ProfileUserId,
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 throw Decline();
             }
 

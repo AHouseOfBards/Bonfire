@@ -764,6 +764,9 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         internal static readonly TimeSpan SameDeviceQuietPeriod = TimeSpan.FromDays(7);
 
+        /// <summary>Set at start-up; null in a harness that does not look at the log.</summary>
+        internal static ILogger? Log = null;
+
         /// <summary>
         /// Folds this household's records that are one device into one, and returns how many records
         /// went. Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>. Idempotent.
@@ -815,6 +818,7 @@ namespace Jellyfin.Profiles.Auth
             var names = HouseholdNames(config).ToList();
             var screens = RecentSignInScreens();
             var merged = 0;
+            var intoNames = new List<string>();
 
             // One merge at a time, then look again: each changes the records the next compares.
             for (var guard = 0; guard < MaxDevicesPerHousehold; guard++)
@@ -823,6 +827,19 @@ namespace Jellyfin.Profiles.Auth
                 if (pair == null) break;
                 if (!ProfilesBaseController.MergeDeviceRecordsCore(config, pair.Value.From, pair.Value.Into, pair.Value.Proven)) break;
                 merged++;
+                var into = LookupRow(config, pair.Value.Into)?.DeviceName;
+                if (into != null && !intoNames.Contains(into)) intoNames.Add(into);
+            }
+
+            // Rows vanish from the picker's device list with no word from the person, so it is said
+            // here. Names only, no ids.
+            if (merged > 0 && Log != null)
+            {
+                var household = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == householdId)?.ProfileName;
+                Log.LogInformation(
+                    "ProfilesPlugin: merged {Count} device row(s) of household {Household} into {Devices}.",
+                    merged, LogText.Clean(string.IsNullOrEmpty(household) ? householdId.ToString("N") : household),
+                    string.Join(", ", intoNames.Select(n => LogText.Clean(n))));
             }
 
             return merged;

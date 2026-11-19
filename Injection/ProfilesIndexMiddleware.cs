@@ -903,7 +903,7 @@ namespace Jellyfin.Profiles
         /// not redirect it to HTTPS. Nothing is answered here: a true result only marks that the page
         /// was requested, and the request goes on to the coordinator.
         /// </summary>
-        private static bool ShouldHandle(
+        private bool ShouldHandle(
             HttpContext context,
             IServerConfigurationManager serverConfig,
             IServerApplicationHost? appHost)
@@ -934,6 +934,12 @@ namespace Jellyfin.Profiles
                 // to be redirected would serve a page the browser is told to leave.
                 if (network.RequireHttps && !context.Request.IsHttps && ListensWithHttps(appHost))
                 {
+                    // Debug, and only for the page itself: this is every request on such a server.
+                    if (IsIndexPath(path, network.BaseUrl) || IsIndexPath(path, null))
+                    {
+                        _logger.LogDebug("ProfilesPlugin: the web page was not touched on this request, Jellyfin is about to redirect it to HTTPS.");
+                    }
+
                     return false;
                 }
 

@@ -140,7 +140,11 @@ Console.WriteLine("── Libraries ──────────────�
     var p = Household(Policy(u => u.EnabledFolders = new[] { L1, L2 }),
                       Policy(u => u.EnabledFolders = new[] { L1, L2, L3 }),
                       folders: new() { L1, L2, L3 });
-    Ok("ApplyAsync runs for a sub-profile", Apply(p));
+    var spoken = new CaptureLogger();
+    Ok("ApplyAsync runs for a sub-profile", (bool)((Task<bool>)apply.Invoke(null, new object[] { users, libraries, spoken, p })).GetAwaiter().GetResult());
+    // #30 could not be told from the log: the library access changed and nothing said so.
+    Ok("entering it says its library access changed, in counts (0 added, 1 removed)",
+       spoken.Lines.Count(l => l.Contains("changed its library access: 0 added, 1 removed")) == 1, string.Join(" | ", spoken.Lines));
     var w = world.Written(p);
     Ok("a profile can't keep a library its main account lacks (" + Show(w?.EnabledFolders) + ")",
        w != null && !w.EnableAllFolders && !w.EnabledFolders.Contains(L3) && w.EnabledFolders.Contains(L1) && w.EnabledFolders.Contains(L2));
@@ -648,7 +652,16 @@ public class WorldProxy : DispatchProxy
     }
 }
 
-sealed class StubPaths : MediaBrowser.Common.Configuration.IApplicationPaths
+sealed class CaptureLogger : Microsoft.Extensions.Logging.ILogger
+{
+    public List<string> Lines = new();
+    public IDisposable BeginScope<TState>(TState state) => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel level) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel level, Microsoft.Extensions.Logging.EventId id, TState state, Exception ex, Func<TState, Exception, string> format)
+        => Lines.Add(level + ": " + format(state, ex));
+}
+
+sealed class StubPaths :MediaBrowser.Common.Configuration.IApplicationPaths
 {
     private readonly string _root;
     public StubPaths(string root) { _root = root; }
