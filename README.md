@@ -19,7 +19,7 @@ Works with Jellyfin 10.11 and 12.0. Part of [Campground](https://github.com/AHou
 - **Shared Bonfires.** Link two accounts with a 6-character code so both households
   appear on one switcher.
 - **Avatars.** Thirty built in, plus any images you upload for the whole server.
-- **Themes.** Twelve looks for Bonfire's screens, including high contrast and two that match
+- **Themes.** Thirteen looks for Bonfire's screens, including high contrast and two that match
   Jellyfin's own light and dark themes. Each profile can have its own.
 - **Six languages.** English, Catalan, French, Polish, Spanish and Turkish, following the
   language set in Jellyfin. [Add yours](Web/i18n/README.md).

@@ -147,6 +147,7 @@ Unauthorized|not_main_account|Only the master profile can change switcher prefer
 Unauthorized|not_main_account|Only the master profile can delete devices.
 Unauthorized|not_main_account|Only the master profile can join Bonfire groups.
 Unauthorized|not_main_account|Only the master profile can manage Bonfire groups.
+Unauthorized|not_main_account|Only the master profile can manage devices.
 Unauthorized|not_main_account|Only the master profile can manage profiles.
 Unauthorized|not_main_account|Only the master profile can merge devices.
 Unauthorized|not_main_account|Only the master profile can rename devices.

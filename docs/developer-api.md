@@ -44,7 +44,7 @@ because other people build against it too.
 
 ## All routes
 
-All 101 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
+All 102 endpoints. **Auth** is what each one enforces: `user` means any signed-in account,
 `anon` means no token at all. `tests/js/apidocs.js` checks this table against the code.
 
 | Route | Auth | Purpose |
@@ -81,6 +81,7 @@ All 101 endpoints. **Auth** is what each one enforces: `user` means any signed-i
 | `POST /plugins/profiles/devices/delete` | user | Forget a device. |
 | `POST /plugins/profiles/devices/merge` | user | Merge two records for one device. |
 | `POST /plugins/profiles/devices/merge-duplicates` | user | Find, and optionally merge, duplicate records. |
+| `POST /plugins/profiles/devices/not-same` | user | Say two look-alike devices are different. |
 | `POST /plugins/profiles/devices/rename` | user | Rename a device. |
 | `GET /plugins/profiles/bonfire/status` | user | The caller's Bonfire. |
 | `POST /plugins/profiles/bonfire/settings` | user | Change Bonfire sharing options. |
@@ -199,7 +200,7 @@ X-Bonfire-Master-Pin: 1234
 ```
 
 These take the header: everything under `/bonfire` except `status`, `/devices/delete`,
-`/devices/merge`, `/devices/rename`, `/devices/merge-duplicates` with `apply=true`, and
+`/devices/merge`, `/devices/not-same`, `/devices/rename`, `/devices/merge-duplicates` with `apply=true`, and
 `POST /preferences`.
 
 Check the PIN once with [`POST /account/verify-pin`](#post-pluginsprofilesaccountverify-pin)
@@ -229,6 +230,7 @@ means an administrator has switched it off: show no Bonfire screens.
     "clientProfileList": true,
     "skipQuickConnectOnKnownDevices": false,
     "profileThemes": true,
+    "clientThemes": false,
     "proxyClients": ["moonfin"],
     "requireMainPin": false,
     "email": false,
@@ -240,7 +242,8 @@ means an administrator has switched it off: show no Bonfire screens.
 
 `features` holds server-wide settings only, never anything about a household. `email` is
 true once outgoing mail is set up and tested; `pinResetByEmail` is true when that and the
-administrator's switch are both on. A feature is only ever reported available when
+administrator's switch are both on. `clientThemes` lets an app with Bonfire built in use the
+profile's theme on its own buttons and menus; off, it keeps its own look. A feature is only ever reported available when
 everything it needs is too.
 
 This is public on purpose. A television's app and the sign-in page need `proxyClients`,
@@ -575,6 +578,7 @@ Errors: `401`.
 | --- | --- | --- | --- |
 | `profileId` | GUID | Yes | The profile to switch to. |
 | `pin` | string | When `requiresPin` | The profile's PIN. |
+| `alwaysAsk` | bool | No | Check the PIN of a profile that has one, even where the home network or the main account's settings would skip it. For an app set to ask every time. Default `false`. |
 | `endPreviousSession` | bool | No | Sign out the token that made this request once the new one exists. Default `false`. If the switch fails, nothing is signed out. |
 
 Response:
@@ -626,7 +630,7 @@ Returns `200` when it's correct. Errors: `400` wrong PIN or not allowed on this 
 `401`, `403` not the caller's profile, `429`.
 
 This answers "may I open this profile", so it returns `200` without checking the PIN
-wherever opening needs none. To check the main account's PIN before managing the
+wherever opening needs none, unless the body has `"alwaysAsk": true` (see `/switch`). To check the main account's PIN before managing the
 household, use `/account/verify-pin`.
 
 ### `POST /plugins/profiles/account/verify-pin`
@@ -880,13 +884,15 @@ placeholder tag that no item carries, so it sees nothing until it's edited.
 ## Sign-in from other apps
 
 These settings under **Apps** change Jellyfin's own routes, for apps that never load
-the web client. All are off by default.
+the web client. A new install turns on the PIN sign-in, the sign-in list and skipping
+Quick Connect; an upgrade keeps what it had. The rest are off by default.
 
 | Setting | What changes |
 | --- | --- |
 | `enableClientPinLogin` | Profiles, and main accounts with a PIN, can be signed in to with the PIN where an app asks for a password. Only on a device the household has signed in on with a password; elsewhere a main account needs its password. |
 | `enableClientProfileList` | `GET /Users/Public` includes the household of the device asking, and profiles show under their own name. |
-| `clientPinLoginFromAnywhere` | A profile with no PIN, or with a device list, can be signed in to from outside the home network. Off: those two open only for a caller Jellyfin places on the local network, after its known-proxy rules. A profile with a PIN and no device list is not affected. Under Advanced in **Dashboard → Plugins → Bonfire → Clients**. |
+| `clientPinLoginFromAnywhere` | A profile with a device list can be signed in to from outside the home network. Off: it opens only for a caller Jellyfin places on the local network, after its known-proxy rules, or one at an address trusted for that household (`trustedAddressEntries`; never for an administrator's household). Under Advanced in **Dashboard → Plugins → Bonfire → Clients**. |
+| `clientNoPinHomeOnly` | A profile with no PIN opens only from the home network or a trusted address, as above. Off (the default): it opens anywhere, on a device its household has signed in on with a password. Under Advanced in the same place. |
 | `skipQuickConnectOnKnownDevices` | `POST /QuickConnect/Initiate` is refused on a TV a household has used, so the app shows its password box. |
 | `proxyClients` | The apps that get the profile picker. See below. |
 
@@ -909,6 +915,12 @@ keeps its saved sign-in when the request is local.
 
 A profile's `Name` is reported as the name its household gave it, `kids` rather than
 `Bard_kids`. The account isn't renamed.
+
+**A name that is another account's username** is reported with a zero-width space (U+200B)
+after it, here and in `GET /Users/Public`, because Jellyfin signs a typed name in as the
+account with that username. Send the name back as it came. Bonfire takes the mark off at
+sign-in. If the marked name is also taken, or the check fails, the system username is
+reported instead.
 
 ### `POST /QuickConnect/Initiate`
 
@@ -1142,6 +1154,12 @@ recently") come with a code beside them so a client can translate: `nameCode`
 (`unrecognised`, `previouslyAllowed`) and `clientCode` (`notSeenRecently`). Both are left
 out for an ordinary device.
 
+`looksLike` is the id of a device a profile is allowed on that this one looks like: same name,
+same app, and either the same browser or the allowed one not seen since this one appeared.
+Ask the main account. Yes is [`/devices/merge`](#post-pluginsprofilesdevicesmerge) from this
+device into that one; no is [`/devices/not-same`](#post-pluginsprofilesdevicesnot-same). Left
+out when there is nothing to ask.
+
 **When you save a profile, keep allowed devices you weren't shown.** An empty
 `allowedDeviceIds` means any device, so dropping them removes the restriction.
 
@@ -1183,6 +1201,9 @@ caller's.
 Finds records that look like one machine: same client, same name, and device ids from the
 same browser version. With `?apply=false`, the default, it only reports.
 
+Bonfire's own clients don't call this. The server merges these by itself, except a record
+on a profile's allowed devices, which only this route or `/devices/merge` will merge.
+
 ```json
 {
   "applied": false,
@@ -1195,6 +1216,17 @@ same browser version. With `?apply=false`, the default, it only reports.
 
 With `?apply=true` it merges each group into its most recent record and returns
 `{ "applied": true, "merged": 3, "groups": 1 }`.
+
+### `POST /plugins/profiles/devices/not-same`
+
+**Authorization:** signed-in user. Must be the main account and own both devices.
+
+```json
+{ "deviceId": "TW96aWxsY…NTAw", "otherDeviceId": "TW96aWxsY…MDAw" }
+```
+
+The answer no to a `looksLike`: `deviceId` is not asked about `otherDeviceId` again. `400` if
+either is unknown, they're the same, or one isn't the caller's.
 
 ### `POST /plugins/profiles/devices/rename`
 
@@ -1481,6 +1513,7 @@ proper names and aren't translated.
 | `harvest` | Autumn. Brown into amber with drifting leaves, leaf-shaped tiles, a serif. |
 | `snowfall` | Winter. Night blue with falling snow, frosted rings, white outlined buttons. |
 | `bloom` | Spring. Fresh green with blossoms, soft rounded tiles, pink highlights. |
+| `moonfin` | Night navy into indigo, cyan ring, round tiles, light type, outlined pill buttons. Matches the Moonfin app. |
 | `jellyfin-dark` | Jellyfin's own dark look. |
 | `jellyfin-light` | Jellyfin's own light look. |
 | `high-contrast` | Yellow on black, large type. |
@@ -2421,9 +2454,11 @@ anything added since you read it.
 | `defaultTheme` | string | A [theme](#themes) id. |
 | `allowProfileThemes` | boolean | Let profiles choose their own theme. Turning it off keeps their choices for later. |
 | `richThemeMotion` | boolean | Let themes with a special animation use it. Default off. |
+| `clientThemes` | boolean | Let apps with Bonfire built in use the theme on their own controls. Default off. |
 | `enableClientPinLogin` | boolean | See [Sign-in from other apps](#sign-in-from-other-apps). |
 | `enableClientProfileList` | boolean | Same. |
 | `clientPinLoginFromAnywhere` | boolean | Same. |
+| `clientNoPinHomeOnly` | boolean | Same. |
 | `skipQuickConnectOnKnownDevices` | boolean | Same. |
 | `profileImageQuality` | string | `standard` (512 px, 2 MB), `high` (1024 px, 4 MB), `maximum` (2048 px, 8 MB) or `ultra` (4096 px, 16 MB). The dashboard calls them Low, Medium, High and Maximum; the stored ids are unchanged. |
 | `onboardingEnabled` | boolean | [First-time setup](#first-time-setup) on or off. The first time it goes on, existing accounts count as having seen it. |
@@ -2586,10 +2621,10 @@ release: **not part of the API.**
 | `AvatarLibrary` | list | The avatars the administrator uploaded (the files are not in the export). |
 | `CustomThemes` | list | `{ "Id", "Json" }`: the [theme file](themes.md#the-file), as text. |
 | `HiddenThemes`, `CustomFonts` | list | Built-in theme ids taken out of the pickers; uploaded fonts (the files are not in the export). |
-| `DefaultTheme`, `AllowProfileThemes`, `RichThemeMotion` | string, boolean, boolean | See [Themes](#themes). |
+| `DefaultTheme`, `AllowProfileThemes`, `RichThemeMotion`, `ClientThemes` | string, boolean, boolean, boolean | See [Themes](#themes). |
 | `LogoImage`, `LogoText`, `LogoAlt`, `LogoCorners` | string or null | The logo (the image file is not in the export). |
 | `DefaultTimeZone`, `DefaultSwitcherLocation`, `DefaultAskOnStartup`, `ProfileImageQuality` | | What an account gets before it chooses. |
-| `EnableClientPinLogin`, `ClientPinLoginFromAnywhere`, `EnableClientProfileList`, `SkipQuickConnectOnKnownDevices`, `ProxyClients` | | What other apps may do. |
+| `EnableClientPinLogin`, `ClientPinLoginFromAnywhere`, `ClientNoPinHomeOnly`, `EnableClientProfileList`, `SkipQuickConnectOnKnownDevices`, `ProxyClients` | | What other apps may do. |
 | `TrustedAddressEntries`, `Announcements`, `AccountEmails`, `EnablePinResetByEmail` | | Trusted addresses, announcements, confirmed addresses, and PIN reset by email. |
 | `Maintenance`, `Onboarding`, `Email` | object | Maintenance, first-time setup and mail settings. `Email` has no `Password`. |
 | `DisallowCustomAvatarUploads`, `EnableStarterAvatars` | boolean | Avatar choices. |

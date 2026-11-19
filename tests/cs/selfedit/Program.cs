@@ -248,6 +248,17 @@ r = Call("UpdateOwnProfile", "{\"profileName\":\"Sib\"}", KID);
 Ok("it cannot take a sibling's name", r.status == 400, r.status + " " + r.message);
 Ok("and changes nothing", Name(kidRow) == "Kiddo" && Username(KID) == "home_Kiddo" && Untouched() == "");
 
+// Nor its own main account's, which would be two tiles of one name in one household.
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Home\"}", KID);
+Ok("it cannot take its main account's name", r.status == 400 && (r.message ?? "").Contains("already exists"), r.status + " " + r.message);
+Ok("and that changes nothing", Name(kidRow) == "Kiddo" && Username(KID) == "home_Kiddo" && Untouched() == "");
+
+// Another household's account name is allowed from 2.0.1 (#46): a sign-in screen marks it.
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Stranger\"}", KID);
+Ok("it can take a name that is an account outside its household", r.status == 200, r.status + " " + r.message);
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Kiddo\"}", KID);
+Ok("(and back)", r.status == 200 && Name(kidRow) == "Kiddo" && Username(KID) == "home_Kiddo", r.status + " " + r.message);
+
 // The request has nowhere to say who. A hand-written one that names someone else is read
 // as a request about the caller, never about them.
 r = Call("UpdateOwnProfile", "{\"profileId\":\"" + SIBLING + "\",\"profileName\":\"Hijacked\"}", KID);
@@ -292,8 +303,12 @@ r = Call("UpdateOwnProfile", "{\"profileName\":\"\"}", KID);
 Ok("an empty name is refused", r.status == 400 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
 r = Call("UpdateOwnProfile", "{\"profileName\":\"a/b\\\\c\"}", KID);
 Ok("a name with characters an account cannot have is refused", r.status == 400 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
+// Another household's main account name: refused until 2.0.1 (R-1336), allowed since (#46),
+// because a sign-in screen marks the tile so it cannot sign in as that account.
 r = Call("UpdateOwnProfile", "{\"profileName\":\"away\"}", KID);
-Ok("a name that is an account's username is refused", r.status == 400 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
+Ok("a name that is another household's account is allowed", r.status == 200 && Name(kidRow) == "away", r.status + " " + r.message);
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Kiddo\"}", KID);
+Ok("(and back)", r.status == 200 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
 
 // ── ST-11: /update ───────────────────────────────────────────────────────────
 Console.WriteLine();
@@ -365,6 +380,20 @@ Ok("setup: the profile's PIN is locked by wrong guesses", !BudgetOpen());
 r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Kiddo\",\"masterPin\":\"" + PIN + "\",\"pin\":\"9999\"}", MAIN);
 Ok("the main account sets it a new PIN", r.status == 200, r.status + " " + r.message);
 Ok("and the lock is gone", BudgetOpen());
+
+// ── A profile already named like its main account ────────────────────────────
+// 2.0.1 refuses a new profile named like its main account. One that already is (named
+// before the rule, or an adopted account) must still save everything else with its name
+// unchanged: the rule ran on every save, so it could not be edited until renamed.
+Console.WriteLine();
+Set(kidRow, "ProfileName", "Home");
+r = Call("UpdateOwnProfile", "{\"profileName\":\"Home\",\"avatarColor\":\"#22C55E\"}", KID);
+Ok("a profile already named like its main account saves its own colour", r.status == 200, r.status + " " + r.message);
+r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Home\",\"masterPin\":\"" + PIN + "\",\"pin\":\"8888\"}", MAIN);
+Ok("and its main account can still set it a PIN", r.status == 200, r.status + " " + r.message);
+Set(kidRow, "ProfileName", "Kiddo");
+r = Call("UpdateProfile", "{\"profileId\":\"" + KID + "\",\"profileName\":\"Home\",\"masterPin\":\"" + PIN + "\"}", MAIN);
+Ok("but renaming one to its main account's name is still refused", r.status == 400 && Name(kidRow) == "Kiddo", r.status + " " + r.message);
 
 try { Directory.Delete(tempDir, true); } catch { }
 Console.WriteLine();

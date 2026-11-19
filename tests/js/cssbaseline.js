@@ -612,6 +612,117 @@ inlineGaps.forEach(g => ok('inline flex gap at L' + g.line + ' has a .jpf-no-fle
     g.tag + '  — give it a class with a margin fallback'));
 ok('every inline flex gap in the markup has a fallback (' + inlineGaps.length + ' without)', inlineGaps.length === 0);
 
+/* A fallback that is present can still lose. A child's own style attribute beats a stylesheet
+ * rule, unless the rule is !important and the attribute is not. So a child of an inline
+ * flex-gap container that sets, in its style attribute, a margin side the .jpf-no-flex-gap rule
+ * sets, keeps its own margin and the fallback never reaches it. The "Same device as X?" row
+ * shipped like that in 2.0.1-beta: the fallback rule existed and the check above passed, and on
+ * webOS 4.5 its two buttons touched. Resolved side by side, per child, so the failure names the
+ * site.
+ */
+const SIDES = ['top', 'right', 'bottom', 'left'];
+const isZero = v => /^0(px|rem|em)?$/.test(v);
+const fourOf = vals => vals.length === 1 ? [vals[0], vals[0], vals[0], vals[0]]
+    : vals.length === 2 ? [vals[0], vals[1], vals[0], vals[1]]
+    : vals.length === 3 ? [vals[0], vals[1], vals[2], vals[1]] : vals.slice(0, 4);
+// The sides a style attribute zeroes: { side: important }. Only zeroes: a child that sets its own
+// spacing on that side (the 2rem above a dialog's buttons) is spaced, whatever the fallback says.
+function marginSides(decls) {
+    const out = {};
+    const re = /(?:^|[;{\s])margin(-top|-right|-bottom|-left)?\s*:\s*([^;]*)/g;
+    let d;
+    while ((d = re.exec(decls)) !== null) {
+        const important = /!important/.test(d[2]);
+        const vals = d[2].replace(/!important/, '').trim().split(/\s+/);
+        if (d[1]) { if (isZero(vals[0])) out[d[1].slice(1)] = important; else delete out[d[1].slice(1)]; continue; }
+        fourOf(vals).forEach((v, i) => { if (isZero(v)) out[SIDES[i]] = important; else delete out[SIDES[i]]; });
+    }
+    return out;
+}
+// The margin sides the .jpf-no-flex-gap fallbacks give the children of an element with these
+// classes: { side: { important, notFirst } }. Only sides set to something other than zero: those
+// are the ones doing the work. notFirst for a "> * + *" rule, which skips the first child.
+function fallbackSides(classes, sheetRules) {
+    const out = {};
+    for (const r of sheetRules) {
+        for (const s of r.selector.split(',').map(x => x.trim())) {
+            if (s.indexOf('.jpf-no-flex-gap') === -1) continue;
+            if (!classes.some(c => new RegExp('\\.' + c.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '(?![\\w-])\\s*>').test(s))) continue;
+            const notFirst = /\+\s*\*\s*$/.test(s);
+            const re = /(?:^|[;\s])margin(-top|-right|-bottom|-left)?\s*:\s*([^;]*)/g;
+            let d;
+            while ((d = re.exec(r.body)) !== null) {
+                const important = /!important/.test(d[2]);
+                const vals = d[2].replace(/!important/, '').trim().split(/\s+/);
+                if (d[1]) { if (!isZero(vals[0])) out[d[1].slice(1)] = { important, notFirst }; continue; }
+                fourOf(vals).forEach((v, i) => { if (!isZero(v)) out[SIDES[i]] = { important, notFirst }; });
+            }
+        }
+    }
+    return out;
+}
+function inlineMarginBeatsFallback(src, sheetRules) {
+    const out = [];
+    const re = /<([a-z]+)\b[^>]*style="([^"]*)"[^>]*>/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+        const st = m[2];
+        if (!/display\s*:\s*(inline-)?flex/.test(st) || !/(^|[;\s])(row-|column-)?gap\s*:/.test(st)) continue;
+        const cm = /class="([^"]*)"/.exec(m[0]);
+        const classes = cm ? cm[1].split(/\s+/).filter(c => c && c.indexOf('${') === -1) : [];
+        const wanted = fallbackSides(classes, sheetRules);
+        if (!Object.keys(wanted).length) continue;   // no fallback at all: the check above names it
+        // Walk the tags after the container's opening tag, tracking depth, to its own close.
+        const tagRe = /<(\/?)([a-z]+)\b([^>]*)>/g;
+        tagRe.lastIndex = m.index + m[0].length;
+        let depth = 0, t, nth = 0;
+        while ((t = tagRe.exec(src)) !== null) {
+            if (t[1] === '/') { if (depth === 0) break; depth--; continue; }
+            const voidTag = /^(img|input|br|hr)$/.test(t[2]) || /\/\s*$/.test(t[3]);
+            if (depth === 0) {
+                nth++;
+                const cs = /style="([^"]*)"/.exec(t[3]);
+                const own = cs ? marginSides(cs[1]) : {};
+                // The attribute wins a side unless the sheet's is !important and its own is not.
+                const lost = Object.keys(wanted).filter(s => s in own
+                    && !(wanted[s].notFirst && nth === 1)
+                    && (own[s] || !wanted[s].important));
+                if (lost.length) {
+                    out.push({ line: src.slice(0, t.index).split('\n').length,
+                               tag: lost.join('/') + ': ' + t[0].replace(/\s+/g, ' ').slice(0, 80) });
+                }
+            }
+            if (!voidTag) depth++;
+        }
+    }
+    return out;
+}
+{
+    const imp = parse('.jpf-no-flex-gap .row > * { margin: 0 6px 6px 0 !important; }');
+    const plain = parse('.jpf-no-flex-gap .row > * + * { margin-left: 6px; }');
+    const C = '<span class="row" style="display:flex; gap: 6px;">';
+    ok('detector: a child with an inline !important margin is flagged',
+        inlineMarginBeatsFallback(C + '<span>a</span><button style="margin: 0 !important;">b</button></span>', imp).length === 1);
+    ok('detector: a plain inline margin on a child is left alone when the fallback is !important',
+        inlineMarginBeatsFallback(C + '<button style="margin: 0;">b</button></span>', imp).length === 0);
+    ok('detector: but a plain inline margin beats a plain fallback',
+        inlineMarginBeatsFallback(C + '<span>a</span><button style="margin: 0;">b</button></span>', plain).length === 1);
+    ok('detector: a "> * + *" fallback leaves the first child alone',
+        inlineMarginBeatsFallback(C + '<button style="margin: 0;">b</button><span>a</span></span>', plain).length === 0);
+    ok('detector: an inline margin on a side the fallback does not set is left alone',
+        inlineMarginBeatsFallback(C + '<div style="margin-top: 2rem !important;">b</div></span>', imp).length === 0);
+    ok('detector: a grandchild is not a direct child',
+        inlineMarginBeatsFallback(C + '<span><b style="margin: 0 !important;">x</b></span></span>', imp).length === 0);
+    ok('detector: a sibling after the container closes is not inside it',
+        inlineMarginBeatsFallback(C + '<span>a</span></span><button style="margin: 0 !important;">b</button>', imp).length === 0);
+    ok('detector: a container with no fallback is left to the check above',
+        inlineMarginBeatsFallback('<span class="other" style="display:flex; gap: 6px;"><button style="margin: 0 !important;">b</button></span>', imp).length === 0);
+}
+const beaten = inlineMarginBeatsFallback(SRC_JS, rules);
+beaten.forEach(g => ok('inline flex-gap child at L' + g.line + ' lets the gap fallback set its margin', false,
+    g.tag + '  — its style attribute zeroes a margin the .jpf-no-flex-gap rule sets; style it from the sheet'));
+ok('no inline flex-gap child zeroes, in its style attribute, a margin the gap fallback sets (' + beaten.length + ')', beaten.length === 0);
+
 /* ── 5. The rest of what is newer than the floor (C-1006) ────────────────────
  *
  * Sections 1 to 3 name the features known to bite. This is the survey of what else is above

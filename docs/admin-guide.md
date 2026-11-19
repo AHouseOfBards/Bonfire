@@ -55,12 +55,13 @@ More in [Security](security.md).
 
 ## Theme
 
-- **Default theme.** What Bonfire's screens use. Default: Bonfire. There are twelve built in.
+- **Default theme.** What Bonfire's screens use. Default: Bonfire. There are thirteen built in.
 - **Let profiles choose their own theme.** On by default.
 - **Richer theme animation** (Advanced). Off by default. Never used with reduced motion or on low-power TVs.
 - **Server logo.** **Choose an image** (PNG, JPEG or WebP, up to 1 MB) or **Remove image**. With no image, the **Logo text** shows (up to 40 characters). Also **Logo corners** (Rounded or Square, default Rounded) and **Alt text** for screen readers (up to 100 characters). **Save text** saves the text fields.
 - **Themes.** The built-in themes can be hidden. **Your themes** lists custom ones. **New theme** opens the editor, and **Import** loads a theme file. Hiding and fonts save at once.
 - **Fonts.** Upload a WOFF2 file, up to 2 MB, with an optional **Font name** and a **Fallback** (Sans-serif or Serif). Tick **I have the right to use this font** first.
+- **Client themes.** **Use the theme on the app's own buttons and menus**, for apps with Bonfire built in. Off by default.
 
 The editor and the theme file format are in [Themes](themes.md).
 
@@ -68,10 +69,11 @@ The editor and the theme file format are in [Themes](themes.md).
 
 For apps without a switcher, such as Android TV, Roku and Swiftfin. Set each app to ask for sign-in every time, or a saved profile opens without its PIN. What each app can do is in [Apps](clients.md).
 
-- **Let profiles sign in with their PIN.** Off by default. The PIN is typed as the password.
-- **Show profiles on the sign-in screen.** Off by default. Only on devices the household has signed in on.
-- **Open the password field instead of Quick Connect.** Off by default. Android TV only, after a household's first sign-in.
-- **Open PIN-less and device-limited profiles from anywhere** (Advanced). Off by default.
+- **Let profiles sign in with their PIN.** On for a new install. The PIN is typed as the password.
+- **Show profiles on the sign-in screen.** On for a new install. Only on devices the household has signed in on.
+- **Open the password field instead of Quick Connect.** On for a new install. Android TV only, after a household's first sign-in.
+- **Open device-limited profiles from anywhere** (Advanced). Off by default.
+- **Open PIN-less profiles at home only** (Advanced). Off by default. Home is the server's network or a trusted address.
 - **Profile picker (beta).** Sign in with the main account, then pick a profile on the client's home screen. Turn it on per client (Moonfin). Profiles can't sign in directly on Moonfin while it is on.
 
 ## Notices

@@ -36,12 +36,15 @@ ok('there are pictures to use', names.length >= 2, names.join(','));
 const builtIn = fs.readdirSync(L.themesDir()).filter(f => /\.json$/.test(f)).map(f => f.replace(/\.json$/, ''));
 const touched = builtIn.filter(id => { const s = css(load(id)); return /--jpf-deco2|--jpf-deco-opacity|::after/.test(s.replace(/jpf-twinkle-b[\s\S]*?\}\n\}/, '')) && !/jpf-twinkle/.test(s); });
 ok('no built-in theme writes a second layer or an opacity (' + builtIn.length + ' checked)', builtIn.length > 5 && touched.length === 0, touched.join(','));
-ok('and Starlight still twinkles as it did', /@keyframes jpf-twinkle \{\s*0%, 100% \{ opacity: 1; \}\s*50% \{ opacity: 0\.45; \}/.test(css(load('starlight'))));
+// Starlight's stars are a built-in pattern, so it twinkles in two halves (patternlayout.js).
+ok('and Starlight still twinkles', /@keyframes jpf-twinkle-s \{\s*0%, 100% \{ opacity: 1; \}\s*50% \{ opacity: 0\.2; \}/.test(css(load('starlight'))));
+
+// names[1] is a built-in picture, laid out 3 by 3, so its repeat below is three of its size.
 
 // 2. A second pattern.
 const second = edit('bloom', t => t.decorations.push({ name: 'pattern2', image: names[1], size: 96, drift: 'none', opacity: 0.4 }));
 const s2 = css(second);
-ok('pattern2 sets its own picture, size and opacity', /--jpf-deco2: url\("data:image\/svg/.test(s2) && /--jpf-deco2-size: 96px;/.test(s2) && /--jpf-deco2-opacity: 0\.4;/.test(s2));
+ok('pattern2 sets its own picture, size and opacity', /--jpf-deco2: url\("data:image\/svg/.test(s2) && /--jpf-deco2-size: 288px;/.test(s2) && /--jpf-deco2-opacity: 0\.4;/.test(s2));
 ok('and draws on ::after for the gate and for the preview',
     /#profiles-gate-overlay::after,\s*\.jpf-theme-preview[^{]*::after \{[^}]*background-image: var\(--jpf-deco2\)/.test(s2));
 ok('the first layer is untouched by it', /--jpf-deco: url\(/.test(s2) && !/--jpf-deco-opacity/.test(s2));
@@ -56,15 +59,15 @@ ok('the stylesheet reads it, with 1 when it is not there', /opacity: var\(--jpf-
 const drifting = edit('bloom', t => t.decorations.push({ name: 'pattern2', image: names[1], size: 100, drift: 'down', seconds: 50 }));
 const s4 = css(drifting);
 ok('a drifting second pattern animates ::after by its own size and seconds',
-    /#profiles-gate-overlay::after \{[^}]*top: -100px;[^}]*animation: jpf-drift-100 50s linear infinite/.test(s4));
-ok('and its keyframes travel its own size', /@keyframes jpf-drift-100 \{[^}]*\}\s*to \{ transform: translateY\(100px\)/.test(s4));
+    /#profiles-gate-overlay::after \{[^}]*top: -300px;[^}]*animation: jpf-drift-300 150s linear infinite/.test(s4));
+ok('and its keyframes travel its own size', /@keyframes jpf-drift-300 \{[^}]*\}\s*to \{ transform: translateY\(300px\)/.test(s4));
 ok('while the first still drifts on ::before', /#profiles-gate-overlay::before \{[^}]*animation: jpf-drift-\d+ /.test(s4));
 
 // 5. Twinkle.
 const twink = edit('starlight', t => { patternOf(t).opacity = 0.5; });
 const s5 = css(twink);
 ok('twinkle scales its fades by the pattern\'s opacity',
-    /@keyframes jpf-twinkle-o05 \{\s*0%, 100% \{ opacity: 0\.5; \}\s*50% \{ opacity: 0\.225; \}/.test(s5) && /animation: jpf-twinkle-o05 /.test(s5), s5.slice(s5.indexOf('twinkle') - 40, s5.indexOf('twinkle') + 200));
+    /@keyframes jpf-twinkle-s-o05 \{\s*0%, 100% \{ opacity: 0\.5; \}\s*50% \{ opacity: 0\.1; \}/.test(s5) && /animation: jpf-twinkle-s-o05 /.test(s5), s5.slice(s5.indexOf('twinkle') - 40, s5.indexOf('twinkle') + 200));
 const both = edit('starlight', t => t.decorations.push({ name: 'pattern2', image: names[1], size: 100, drift: 'none' }));
 const s5b = css(both);
 ok('with a second pattern the shifted copy is not drawn on ::after', /jpf-twinkle/.test(s5b) && !/jpf-twinkle-b/.test(s5b));

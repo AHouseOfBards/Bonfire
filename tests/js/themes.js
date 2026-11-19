@@ -161,7 +161,7 @@ const dashNormalize = (function () {
 
 const fileIds = fs.readdirSync(path.join(__dirname, '..', '..', 'Web', 'themes'))
     .filter(f => /\.json$/.test(f) && f !== 'fonts.json').map(f => f.replace(/\.json$/, ''));
-ok('the server lists twelve themes (' + serverIds.join(', ') + ')', serverIds.length === 12);
+ok('the server lists thirteen themes (' + serverIds.join(', ') + ')', serverIds.length === 13);
 serverIds.forEach(id => ok('Web/themes/' + id + '.json exists', fileIds.indexOf(id) !== -1));
 fileIds.forEach(id => ok('Web/themes/' + id + '.json is a server theme', serverIds.indexOf(id) !== -1));
 ok('bonfire is one of them, and first', serverIds[0] === 'bonfire');
@@ -985,11 +985,12 @@ console.log('\n── The seasonal themes carry their season, Starlight its star
     const anim = /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\[data-jpf-theme="snowfall"\]\.jpf-rich-motion:not\(\.jpf-flat\) #profiles-gate-overlay::before\s*\{([^}]*)\}/.exec(CSS);
     // The keyframes are named for the tile they travel, since any theme's pattern may drift.
     ok('the snow falls only for people who have not asked for less motion, and not on a flat TV',
-       !!anim && /animation:\s*jpf-drift-240 /.test(anim[1]));
+       !!anim && /animation:\s*jpf-drift-720 /.test(anim[1]));
+    // The snow is laid out 3 by 3 (patternlayout.js), so one repeat is 720px, three of 240.
     ok('by transform, which the compositor moves without repainting',
-       /@keyframes jpf-drift-240\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(240px\);/.test(CSS)
-       && !!anim && /top:\s*-240px/.test(anim[1]));
-    ok('and loops on one tile of it, so it joins up', theme.snowfall['--jpf-deco-size'] === '240px');
+       /@keyframes jpf-drift-720\s*\{\s*from\s*\{\s*transform:\s*translateY\(0\);\s*\}\s*to\s*\{\s*transform:\s*translateY\(720px\);/.test(CSS)
+       && !!anim && /top:\s*-720px/.test(anim[1]));
+    ok('and loops on one repeat of it, so it joins up', theme.snowfall['--jpf-deco-size'] === '720px');
     const unguarded = /animation:\s*jpf-drift-/g;
     let m, count = 0;
     while ((m = unguarded.exec(CSS)) !== null) count++;
@@ -1012,10 +1013,12 @@ console.log('\n── The seasonal themes carry their season, Starlight its star
     ok('the twinkle is a change of opacity, which the compositor does without repainting',
        (function () {
            const blocks = [];
-           const re = /@keyframes jpf-twinkle(-b)?\s*\{([\s\S]*?)\n\}/g;
-           let k;
-           while ((k = re.exec(CSS)) !== null) blocks.push(k[2]);
-           return blocks.length >= 2 && blocks.every(function (s) {
+           // Starlight's two halves share one keyframes (jpf-twinkle-s), half a loop apart; an
+           // uploaded pattern would still write jpf-twinkle and jpf-twinkle-b.
+           const re = /@keyframes jpf-twinkle(-b|-s)?\s*\{([\s\S]*?)\n\}/g;
+           let k, halves = false;
+           while ((k = re.exec(CSS)) !== null) { blocks.push(k[2]); if (k[1] === '-s') halves = true; }
+           return halves && blocks.length >= 1 && blocks.every(function (s) {
                return /opacity/.test(s) && !/(top|left|right|bottom|width|height|background|transform)\s*:/.test(s);
            });
        })());

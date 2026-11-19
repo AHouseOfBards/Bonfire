@@ -368,6 +368,21 @@ namespace Jellyfin.Profiles.Auth
             // already right is left alone, not rewritten.
             if (Fingerprint(targetPolicy) != before)
             {
+                // What the account's library access changed by, in counts, so "my library vanished
+                // when I opened the profile" can be answered from the log (#30). Nothing is said when
+                // only another part of the policy was rewritten.
+                var folderNow = authorityFolders.Concat(keptOwned.Enabled).Distinct().ToList();
+                var folderWas = childEnableAllFolders ? null : (childEnabledFolders ?? Array.Empty<Guid>()).Distinct().ToList();
+                var added = folderWas == null ? folderNow.Count : folderNow.Count(id => !folderWas.Contains(id));
+                var dropped = folderWas == null ? 0 : folderWas.Count(id => !folderNow.Contains(id));
+                if (added > 0 || dropped > 0 || folderWas == null)
+                {
+                    logger.LogInformation(
+                        "ProfilesPlugin: entering profile {Profile} of {Main} changed its library access: {Added} added, {Removed} removed{AllNote}.",
+                        LogText.Clean(mapping.ProfileName), LogText.Clean(masterUser.Username), added, dropped,
+                        folderWas == null ? " (it was on all libraries)" : string.Empty);
+                }
+
                 await userManager.UpdatePolicyAsync(targetUser.Id, targetPolicy).ConfigureAwait(false);
             }
 

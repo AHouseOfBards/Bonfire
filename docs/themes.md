@@ -254,11 +254,11 @@ don't know.
 
 | Name | Values | What it draws |
 | --- | --- | --- |
-| `pattern` | `image`, `size`, `drift`, `opacity` | An image repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one image's width and height in pixels. `drift` is `none`, or `down` with `seconds` (4 to 600) for one image's height. `opacity` is optional, 0.1 to 1, and 1 when left out. |
+| `pattern` | `image`, `size`, `drift`, `opacity` | An image repeated behind the switcher, faint. `image` is a file from `GET /themes`. `size` is one image's width and height in pixels. `drift` is `none`, or `down` with `seconds` (4 to 600) for one image's height. `opacity` is optional, 0.1 to 1, and 1 when left out. A built-in image other than `waves` is laid out 3 by 3, each copy turned or mirrored, so the repeat doesn't show; `seconds` stays per image. |
 | `pattern2` | the same as `pattern` | A second pattern, drawn above the first, with its own image, size, drift and opacity. Needs a `pattern`, and a theme has at most one. Without a `pattern2` a theme is exactly as it was. |
 | `rings` | `gradients`, `gap` | Each profile gets a gradient ring of its own: profile 1 takes the first, profile 2 the second, and so on, starting over at the end. Not the Add tile. `gap` is the color of the thin space between the ring and the image. |
 | `frost` | `blur` | Dialogs blur what's behind them by `blur` pixels, and the second kind of button by two thirds of that. |
-| `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120), with a second copy of it shifted so the stars don't all dim at once. Needs a `pattern`. It fades the first pattern from its own `opacity`. With a `pattern2` the shifted copy is not drawn and only the first pattern fades. |
+| `twinkle` | `seconds` | The pattern fades slowly down and back up, one cycle in `seconds` (2 to 120). A built-in pattern fades in two halves, half a cycle apart, so neighbors take turns; an uploaded one fades with a shifted copy of itself. Needs a `pattern`. It fades the first pattern from its own `opacity`. With a `pattern2` only the first pattern fades, as a whole. |
 
 ### Pattern images
 

@@ -211,7 +211,7 @@ namespace Jellyfin.Profiles.Auth
                 _logger.LogInformation(
                     "ProfilesPlugin: {User} took over an open session on device {DeviceId} ({Client}) "
                     + "without a sign-out, which Jellyfin does not report as a sign-in; treated as one.",
-                    session.UserName, session.DeviceId, session.Client);
+                    session.UserName, LogText.Clean(session.DeviceId), LogText.Clean(session.Client));
                 OnSignedIn(session, before);
             }
             catch (Exception ex)
@@ -280,7 +280,7 @@ namespace Jellyfin.Profiles.Auth
                     _logger.LogDebug(
                         "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}), which is not a "
                         + "Bonfire household, so nothing was noted for its sign-in screen.",
-                        session.UserName, session.DeviceId, session.Client);
+                        session.UserName, LogText.Clean(session.DeviceId), LogText.Clean(session.Client));
 
                     // But its television's NAME is noted, so the Quick Connect skip never takes Quick Connect
                     // away from this person because a household owns the same model. See
@@ -290,7 +290,7 @@ namespace Jellyfin.Profiles.Auth
                         _logger.LogInformation(
                             "ProfilesPlugin: {Device} is also used by an account outside any household, so "
                             + "Quick Connect is no longer skipped on televisions of that name.",
-                            session.DeviceName);
+                            LogText.Clean(session.DeviceName));
                     }
 
                     return;
@@ -360,7 +360,7 @@ namespace Jellyfin.Profiles.Auth
                     _logger.LogInformation(
                         "ProfilesPlugin: device {DeviceId} carries {User}'s name appended to it, so "
                         + "{Bare} was noted as well — that is what this app sends on its sign-in screen.",
-                        session.DeviceId, session.UserName, bare);
+                        LogText.Clean(session.DeviceId), session.UserName, bare);
                 }
 
                 // Information, not Debug. This is the half of the feature that WRITES. Shipping it silent in
@@ -370,7 +370,7 @@ namespace Jellyfin.Profiles.Auth
                 _logger.LogInformation(
                     "ProfilesPlugin: {User} signed in on device {DeviceId} ({Client}); household "
                     + "{Master} noted, so its profiles can be offered on this device's sign-in screen.",
-                    session.UserName, session.DeviceId, session.Client, master);
+                    session.UserName, LogText.Clean(session.DeviceId), LogText.Clean(session.Client), master);
             }
             catch (Exception ex)
             {

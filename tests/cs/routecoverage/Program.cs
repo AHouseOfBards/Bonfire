@@ -319,6 +319,28 @@ Console.WriteLine("── VerifyPin ──────────────�
         Forget();
         budget.GetMethod("End", flags).Invoke(null, new object[] { OPEN_KID });
     }
+
+    // 2026-11-16: an app set to ask every time (Moonfin's "Always ask for password") sends
+    // alwaysAsk, and a PIN the main account's settings would skip is checked anyway.
+    {
+        var SKIPPER = Guid.NewGuid(); world.Add(SKIPPER, "Skipper");
+        var row = Map(SKIPPER, SKIPPER, pin: "2468");
+        mapType.GetProperty("AskPinToOpen").SetValue(row, false);
+        var skipped = Call("VerifyPin", SKIPPER, new { ProfileId = SKIPPER, Pin = "0000" });
+        Ok("setup: a main account set not to ask opens without its PIN (" + Say(skipped) + ")", skipped.status == 200);
+        var asked = Call("VerifyPin", SKIPPER, new { ProfileId = SKIPPER, Pin = "0000", AlwaysAsk = true });
+        Ok("with alwaysAsk a wrong PIN is refused there (" + Say(asked) + ")", asked.status == 400);
+        var rightAsked = Call("VerifyPin", SKIPPER, new { ProfileId = SKIPPER, Pin = "2468", AlwaysAsk = true });
+        Ok("and the right one is accepted (" + Say(rightAsked) + ")", rightAsked.status == 200);
+        var open = Call("VerifyPin", PARENT, new { ProfileId = OPEN_KID, Pin = "", AlwaysAsk = true });
+        Ok("a profile with no PIN still opens (" + Say(open) + ")", open.status == 200);
+        foreach (var f in asm.GetType("Jellyfin.Profiles.Controllers.RateLimiter", true).GetFields(flags))
+        {
+            var lim = f.GetValue(null);
+            if (lim == null || f.FieldType.Name != "RateLimiter") continue;
+            f.FieldType.GetMethod("Reset")?.Invoke(lim, new object[] { "203.0.113.7_" + SKIPPER });
+        }
+    }
 }
 
 // ── SetProfileLimit ──────────────────────────────────────────────────────────

@@ -131,6 +131,8 @@ function optional(name) {
         ['Web/profiles.js', "thumb.style.backgroundImage = preview ? (\"url(\\\"\" + preview + \"\\\")\") : \"\";", 'preview comes from _libraryArtUrl, which routes through pluginUrl()'],
         ['Web/profiles.js', "['--jpf-deco', patternImage ? 'url(\"' + patternImage + '\")' : 'none'],", 'patternImage comes from patternPicture(): an inline data: URL from the theme table, or pluginUrl() for an uploaded file'],
         ['Web/profiles.js', "vars.push(['--jpf-deco2', 'url(\"' + pattern2Image + '\")'],", 'pattern2Image comes from patternPicture(), the same as patternImage: an inline data: URL or pluginUrl()'],
+        ['Web/profiles.js', "::before {\\n        background-image: url(\"' + halves[0] + '\");", 'halves are laidOutPattern(): inline SVG data: URLs built from the theme table'],
+        ['Web/profiles.js', "+ '        background-image: url(\"' + halves[1] + '\");", 'halves are laidOutPattern(): inline SVG data: URLs built from the theme table'],
         ['Web/profiles.js', "const chevron = 'url(\"data:image/svg+xml,", 'an inline SVG data: URL drawn in the theme text colour (R-1269)'],
         ['Web/profiles.js', "src: url(\"' + url + '\") format(\"woff2\");", 'url is urlFor(), which is pluginUrl()'],
         ['Web/profiles.js', "return 'linear-gradient(' + veil + ', ' + veil + '), url(\"' + url + '\") center / cover no-repeat, ' + gateBg;", 'url is pluginUrl(), on the line above'],

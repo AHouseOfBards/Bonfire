@@ -36,6 +36,7 @@ function run(state) {
         '#enableClientPinLogin': { checked: state.pin, disabled: false },
         '#enableClientProfileList': { checked: state.list, disabled: false },
         '#clientPinLoginFromAnywhere': { checked: true, disabled: false },
+        '#clientNoPinHomeOnly': { checked: true, disabled: false },
         '#allowProfileThemes': { checked: state.themes }
     };
     // Any other selector asked for is a control it should not be touching: the first-time
@@ -50,6 +51,12 @@ ok('From anywhere is disabled when PIN login and the profile list are both off',
 ok('and keeps its stored value', none.els['#clientPinLoginFromAnywhere'].checked === true);
 ok('PIN login alone enables it', run({ pin: true, list: false, themes: true }).els['#clientPinLoginFromAnywhere'].disabled === false);
 ok('the profile list alone enables it', run({ pin: false, list: true, themes: true }).els['#clientPinLoginFromAnywhere'].disabled === false);
+
+// Home only (2.0.1) depends on the same two.
+ok('Home only is disabled when both are off', none.els['#clientNoPinHomeOnly'].disabled === true);
+ok('and keeps its stored value', none.els['#clientNoPinHomeOnly'].checked === true);
+ok('PIN login alone enables home only', run({ pin: true, list: false, themes: true }).els['#clientNoPinHomeOnly'].disabled === false);
+ok('the profile list alone enables home only', run({ pin: false, list: true, themes: true }).els['#clientNoPinHomeOnly'].disabled === false);
 
 // The theme step's "Show" row, and the dimming that followed profile themes, went with the
 // step boxes: nothing is chosen per step any more.

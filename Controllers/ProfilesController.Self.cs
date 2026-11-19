@@ -53,7 +53,11 @@ namespace Jellyfin.Profiles.Controllers
             string? newUsername = null;
             if (request.ProfileName != null)
             {
-                var nameError = ValidateProfileName(request.ProfileName);
+                // The main account's name only for a rename: one a profile already has stays
+                // editable (see UpdateProfile).
+                var renamed = !string.Equals(mapping.ProfileName?.Trim(), request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase);
+                var nameError = ValidateProfileName(request.ProfileName)
+                    ?? (renamed ? ValidateNotMainAccountName(request.ProfileName, mainUser.Username) : null);
                 if (nameError != null) return BadRequest(nameError);
                 newName = request.ProfileName.Trim();
                 newUsername = $"{mainUser.Username}_{newName.Replace(" ", "")}";
@@ -75,12 +79,8 @@ namespace Jellyfin.Profiles.Controllers
             }
             if (newName != null)
             {
-                if (!string.Equals(currentName, newName, StringComparison.OrdinalIgnoreCase))
-                {
-                    var takenError = ValidateProfileNameFree(_userManager, newName, callerId.Value);
-                    if (takenError != null) return BadRequest(takenError);
-                }
-
+                // Another account's username is allowed (ProfileNameRewriter.ClashMarker); a name the
+                // household already has is not, and that is this check on the system username.
                 if (!string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase)
                     && GetAllUsers().Any(u => u.Id != user.Id && string.Equals(u.Username, newUsername, StringComparison.OrdinalIgnoreCase)))
                 {

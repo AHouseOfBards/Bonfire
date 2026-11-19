@@ -69,6 +69,22 @@ namespace Jellyfin.Profiles.Auth
         {
             Capture(deviceId, client);
             _local.Value = local;
+            _address.Value = null;
+        }
+
+        private static readonly AsyncLocal<System.Net.IPAddress?> _address = new();
+
+        /// <summary>
+        /// The address Jellyfin resolved for the current request, after its known-proxy rules
+        /// (<see cref="ClientAddress"/>), or null. Read for trusted addresses only.
+        /// </summary>
+        public static System.Net.IPAddress? Address => _address.Value;
+
+        /// <summary>As above, with the address too.</summary>
+        public static void Capture(string? deviceId, string? client, bool local, System.Net.IPAddress? address)
+        {
+            Capture(deviceId, client, local);
+            _address.Value = address;
         }
 
         private static readonly AsyncLocal<SignInNote?> _signIn = new();

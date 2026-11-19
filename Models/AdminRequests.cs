@@ -17,6 +17,15 @@ namespace Jellyfin.Profiles.Models
         public string IntoDeviceId { get; set; } = string.Empty;
     }
 
+    public class NotSameDeviceRequest
+    {
+        /// <summary>The device that was asked about.</summary>
+        public string DeviceId { get; set; } = string.Empty;
+
+        /// <summary>The device it is not.</summary>
+        public string OtherDeviceId { get; set; } = string.Empty;
+    }
+
     public class RenameDeviceRequest
     {
         public string DeviceId { get; set; } = string.Empty;
@@ -58,11 +67,17 @@ namespace Jellyfin.Profiles.Models
 
         /// <summary>Themes with a special animation may use it. Null leaves it alone.</summary>
         public bool? RichThemeMotion { get; set; }
+
+        /// <summary>Apps with Bonfire built in may theme their own controls. Null leaves it alone.</summary>
+        public bool? ClientThemes { get; set; }
         public bool? EnableClientPinLogin { get; set; }
         public bool? EnableClientProfileList { get; set; }
 
-        /// <summary>PIN-less and device-restricted profiles may sign in on other apps from outside the home network. Null leaves it alone.</summary>
+        /// <summary>Device-restricted profiles may sign in on other apps from outside the home network. Null leaves it alone.</summary>
         public bool? ClientPinLoginFromAnywhere { get; set; }
+
+        /// <summary>PIN-less profiles sign in on other apps only from the home network or a trusted address. Null leaves it alone.</summary>
+        public bool? ClientNoPinHomeOnly { get; set; }
 
         public bool? SkipQuickConnectOnKnownDevices { get; set; }
 

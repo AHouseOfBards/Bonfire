@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Jellyfin.Profiles.Configuration;
+using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Profiles.Auth
@@ -56,6 +57,56 @@ namespace Jellyfin.Profiles.Auth
         }
 
         /// <summary>
+        /// Put after a profile's name on a sign-in screen when the name is another account's username.
+        /// A zero-width space: invisible, and not whitespace to the trim of Kotlin, Swift, .NET or
+        /// JavaScript, so the app sends it back as part of the name.
+        ///
+        /// <para><b>Why it is needed.</b> An app types the tile's name into the username field, and
+        /// Jellyfin's <c>AuthenticateUser</c> looks that up as a username (exact, ignoring case) before
+        /// asking any provider. A "test" tile on a server with a "test" account signed in as that
+        /// account: the profile never opened and each wrong PIN counted against the other account. With
+        /// the marker no username matches, so Jellyfin hands the name to Bonfire's provider, which takes
+        /// the marker off (<see cref="StripClashMarker"/>). Until 2.0.1 the tile showed the system
+        /// username instead (R-1336), and profile names that matched a username were refused.</para>
+        ///
+        /// <para>Not U+FEFF: JavaScript's <c>trim()</c> removes it. Not U+2060: fewer fonts carry it,
+        /// and a font without it draws a box.</para>
+        /// </summary>
+        internal const string ClashMarker = "​";
+
+        /// <summary>
+        /// The name a client should be told for this profile: its household's name, with
+        /// <see cref="ClashMarker"/> after it when that is another account's username. Null when it
+        /// should keep its system username: not a profile, or the lookup failed (a plainer tile, never
+        /// one that signs in as somebody else).
+        /// </summary>
+        public static string? SignInNameFor(PluginConfiguration? config, Guid userId, IUserManager? users)
+        {
+            var friendly = FriendlyNameFor(config, userId)?.Trim();
+            if (string.IsNullOrEmpty(friendly) || users == null) return null;
+
+            try
+            {
+                var other = users.GetUserByName(friendly);
+                if (other == null || other.Id == userId) return friendly;
+
+                var marked = friendly + ClashMarker;
+                var again = users.GetUserByName(marked);
+                return again == null || again.Id == userId ? marked : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>A typed name without the <see cref="ClashMarker"/> a sign-in screen put after it.</summary>
+        public static string? StripClashMarker(string? typed)
+            => typed != null && typed.EndsWith(ClashMarker, StringComparison.Ordinal)
+                ? typed.Substring(0, typed.Length - ClashMarker.Length)
+                : typed;
+
+        /// <summary>
         /// The rewritten body, or null to leave the response untouched.
         /// <para>
         /// Handles a bare <c>UserDto</c> (<c>GET /Users/Me</c>) and an <c>AuthenticationResult</c>
@@ -66,6 +117,7 @@ namespace Jellyfin.Profiles.Auth
             byte[] produced,
             string? responseContentType,
             PluginConfiguration? config,
+            IUserManager? users,
             ILogger logger)
         {
             if (config == null || !config.EnableClientProfileList) return null;
@@ -91,7 +143,9 @@ namespace Jellyfin.Profiles.Auth
             var idText = Text(target, "Id", "id");
             if (string.IsNullOrEmpty(idText) || !Guid.TryParse(idText, out var userId)) return null;
 
-            var friendly = FriendlyNameFor(config, userId);
+            // The same name the sign-in list showed, marker included. A saved sign-in keeps the name
+            // from this response and types it next time, so a plain "test" here would undo the marker.
+            var friendly = SignInNameFor(config, userId, users);
             if (friendly == null) return null;
 
             var nameKey = target["Name"] != null ? "Name" : target["name"] != null ? "name" : null;

@@ -9,6 +9,45 @@ See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
 
+## 2.1.0  — 2026-11-19
+
+**Fixed**
+
+- TV sign-in screens, the device list, themes and the profile button. (#42, #46, #48)
+- Security fixes. Updating is recommended.
+
+**Changed**
+
+- Profiles show on TV sign-in screens on a new install, and duplicate devices merge on their own.
+- The log says more, to help with bug reports.
+
+**Added**
+
+- A Moonfin theme, and more settings for apps with Bonfire built in.
+
+## 2.0.1-beta  — 2026-11-16
+
+**Fixed**
+
+- A profile named like another account keeps its own name on a TV's sign-in screen. (#46)
+- A profile without a PIN opens from a TV's sign-in screen away from home, on a device the household has signed in on.
+- Addresses trusted for a household count as home on TV sign-in screens. (#42)
+- Web browsers show in the device list again.
+- One Android TV no longer shows as several devices.
+- Decorated themes no longer show their pattern repeating in a grid, and every star in Starlight twinkles.
+
+**Changed**
+
+- A new install shows profiles on TV sign-in screens and lets them sign in with their PIN.
+- Duplicate devices merge on their own, and a new device that looks like one you know asks "Same device as ...?".
+- The log says why a TV's sign-in screen got no profiles. (#46)
+
+**Added**
+
+- Apps with Bonfire built in, such as Moonfin, can use the profile's theme on their own screens. Off by default.
+- An app set to always ask for a PIN now always gets asked.
+- An Advanced setting keeps profiles without a PIN to the home network.
+
 ## 2.0.0  — 2026-11-14
 
 **Bonfire 2.0** is a long-term support release. From here, updates bring fixes, translations and support for new Jellyfin versions.

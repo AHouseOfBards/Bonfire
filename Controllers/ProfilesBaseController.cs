@@ -1445,17 +1445,53 @@ namespace Jellyfin.Profiles.Controllers
         {
             if (!RateLimiter.Pin.TryBegin(addressKey))
             {
+                LogRefusal("PIN refused, too many wrong tries from this address", profileId);
                 LogLockout(profileId, addressKey);
                 return TooManyAttempts(RateLimiter.Pin, addressKey, "Too many failed PIN attempts.");
             }
 
             if (!PinBudget.TryBegin(profileId))
             {
+                LogRefusal("PIN refused, the account's wrong-PIN allowance is used up", profileId);
                 LogLockout(profileId, profileId.ToString("N"));
                 return TooManyAttempts(PinBudget.RetryAfter(profileId), "Too many failed PIN attempts.");
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// One Information line for a refusal: which rule decided, which profile and household, and
+        /// which device and app asked. Without it a report of "it would not let me in" needs a second
+        /// round to learn which rule it was. Never the PIN. The device and client come from the
+        /// request, so they are cleaned.
+        /// </summary>
+        protected void LogRefusal(string rule, Guid profileId)
+        {
+            try
+            {
+                // Read under the lock: a save on another thread can change the list mid-search.
+                string? name;
+                Guid? masterId;
+                lock (ConfigLock)
+                {
+                    var mapping = Plugin.Instance?.Configuration?.Mappings.FirstOrDefault(m => m.ProfileUserId == profileId);
+                    name = mapping?.ProfileName;
+                    masterId = mapping?.MasterUserId;
+                }
+                var profile = !string.IsNullOrEmpty(name) ? name : _userManager.GetUserById(profileId)?.Username;
+                var main = _userManager.GetUserById(masterId ?? profileId)?.Username;
+                _logger.LogInformation(
+                    "ProfilesPlugin: {Rule}: profile {Profile} of {Main}, device {Device}, client {Client}.",
+                    rule, Auth.LogText.Clean(profile), Auth.LogText.Clean(main),
+                    Auth.LogText.Clean(GetAuthorizationParameter("Device")),
+                    Auth.LogText.Clean(GetAuthorizationParameter("Client")));
+            }
+            catch (Exception ex)
+            {
+                // A log line must never turn a refusal into a 500.
+                _logger.LogDebug(ex, "ProfilesPlugin: could not describe a refusal.");
+            }
         }
 
         /// <summary>A PIN locked by too many wrong tries: one Activity log line per lock. Shared with the apps' door, see <see cref="Auth.PinLockout"/>.</summary>
@@ -1848,26 +1884,23 @@ namespace Jellyfin.Profiles.Controllers
         /// same client and reported name, that is as good as client-supplied data gets.
         /// </para>
         /// <para>
-        /// Still only a suggestion; nothing here merges on its own. These are ids in use side by
-        /// side (two origins, two browser profiles), which Auth.DeviceRegistry.MergeSameDevices
-        /// leaves apart. Cleared site data is an old id gone silent, and that one merges
-        /// automatically. Two people with the same phone model and browser version would share a
-        /// group, and merging them would widen a whitelist, which device housekeeping must never do
-        /// alone. Grouping is scoped to one household, and then a person confirms.
+        /// Only for <c>devices/merge-duplicates</c>, which no Bonfire client calls since Tidy up
+        /// duplicates went (2026-11-15): Auth.DeviceRegistry.MergeSameDevices now merges these on
+        /// its own, except a row on an allow list. Two people with the same phone model and browser
+        /// version would share a group, and merging them would widen a whitelist, which device
+        /// housekeeping must never do alone. This route merges allow-listed rows too, because a
+        /// person asked for it.
         /// </para>
         /// </summary>
         internal static List<List<KnownDevice>> GroupLikelyDuplicates(IEnumerable<KnownDevice> devices)
         {
-            // Long enough to rule out base64 alignment coincidence: 32 characters is 24 bytes of user
-            // agent, well past "Mozilla/5.0 (" and into the platform.
-            const int MinSharedPrefix = 32;
+            const int MinSharedPrefix = SameBrowserPrefix;
 
             var groups = new List<List<KnownDevice>>();
 
             foreach (var byName in devices
                 .Where(d => !string.IsNullOrEmpty(d.DeviceId))
-                .GroupBy(d => (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant()
-                              + "\0" + (d.Client ?? string.Empty).Trim().ToLowerInvariant()))
+                .GroupBy(SameDeviceLabel))
             {
                 var candidates = byName.OrderByDescending(d => d.LastSeen).ToList();
                 if (candidates.Count < 2) continue;
@@ -1895,6 +1928,65 @@ namespace Jellyfin.Profiles.Controllers
             }
 
             return groups;
+        }
+
+        /// <summary>
+        /// Long enough to rule out base64 alignment coincidence: 32 characters is 24 bytes of user
+        /// agent, well past "Mozilla/5.0 (" and into the platform.
+        /// </summary>
+        internal const int SameBrowserPrefix = 32;
+
+        /// <summary>
+        /// Whether two device ids are one browser's: two jellyfin-web ids
+        /// (base64 of user agent + "|" + time) whose user agents are byte for byte the same.
+        /// <para>
+        /// This compared <see cref="SameBrowserPrefix"/> characters, which is 24 bytes of user
+        /// agent: "Mozilla/5.0 (Windows NT ". Every Windows Chrome in a household matched, whatever
+        /// its version, and MergeSameDevices folded them into one row. The whole user agent is
+        /// decoded and compared instead. An id that is not jellyfin-web's never matches.
+        /// </para>
+        /// </summary>
+        internal static bool SameBrowserIds(string? a, string? b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) || string.Equals(a, b, StringComparison.Ordinal)) return false;
+            var uaA = WebIdUserAgent(a);
+            return uaA != null && string.Equals(uaA, WebIdUserAgent(b), StringComparison.Ordinal);
+        }
+
+        /// <summary>The user agent inside a jellyfin-web device id, or null if it is not one.</summary>
+        /// <remarks>
+        /// components/apphost.js: <c>btoa(userAgent + '|' + Date.now()).replaceAll('=', '1')</c>.
+        /// The padding turned into '1' is still valid base64, so the id decodes as it is, and only the
+        /// last byte or two of the time come out wrong. The time is 13 digits, so the user agent ahead
+        /// of the '|' is intact, and ten digits after it are enough to know the shape.
+        /// </remarks>
+        private static string? WebIdUserAgent(string id)
+        {
+            byte[] bytes;
+            try { bytes = Convert.FromBase64String(id); }
+            catch (FormatException) { return null; }
+            var text = System.Text.Encoding.UTF8.GetString(bytes);
+            var bar = text.LastIndexOf('|');
+            if (bar <= 0 || text.Length - bar - 1 < 10) return null;
+            for (var i = bar + 1; i <= bar + 10; i++)
+            {
+                if (text[i] < '0' || text[i] > '9') return null;
+            }
+            return text.Substring(0, bar);
+        }
+
+        /// <summary>
+        /// The name and app two records must share to be one device: the name as typed, ignoring case,
+        /// and the app by its words. Apps rename themselves between versions, and one phone was two rows
+        /// as "Jellyfin for Android" and "Jellyfin Android". "for" is dropped, and anything that is not
+        /// a letter or digit splits words; "Jellyfin Android TV" stays another app.
+        /// </summary>
+        internal static string SameDeviceLabel(KnownDevice d)
+        {
+            var words = System.Text.RegularExpressions.Regex
+                .Split((d.Client ?? string.Empty).ToLowerInvariant(), "[^\\p{L}\\p{N}]+")
+                .Where(w => w.Length > 0 && w != "for");
+            return (d.DeviceName ?? string.Empty).Trim().ToLowerInvariant() + "\0" + string.Join(" ", words);
         }
 
         /// <summary>Names that carry no information, and so must never suppress a fallback.</summary>
@@ -1927,6 +2019,7 @@ namespace Jellyfin.Profiles.Controllers
                 LastSeen = d.LastSeen,
                 MasterUserId = d.MasterUserId,
                 NameIsCustom = d.NameIsCustom,
+                LooksLike = d.LooksLike,
                 Owners = new List<Guid>(d.Owners ?? new List<Guid>())
             }).ToList();
 
@@ -2241,7 +2334,7 @@ namespace Jellyfin.Profiles.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {ProfileId} out on device {DeviceId}.", e.ProfileUserId, e.DeviceId);
+                    _logger.LogWarning(ex, "ProfilesPlugin: could not sign {ProfileId} out on device {DeviceId}.", e.ProfileUserId, Auth.LogText.Clean(e.DeviceId));
                 }
             }
 
@@ -2373,6 +2466,18 @@ namespace Jellyfin.Profiles.Controllers
         /// username failed inside <c>CreateUserAsync</c> as a 500 with no message, and a long name
         /// went unchecked into every screen showing it, other households' switchers included.
         /// </summary>
+        /// <summary>
+        /// Refuses a profile named like its own main account. The two would be one household with two
+        /// tiles of the same name, and on a sign-in screen the profile's would only differ by an
+        /// invisible marker (ProfileNameRewriter.ClashMarker). Another household's names, and other
+        /// accounts' usernames, are allowed.
+        /// </summary>
+        internal static string? ValidateNotMainAccountName(string? name, string? mainUsername)
+            => !string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(mainUsername)
+               && string.Equals(name.Trim(), mainUsername.Trim(), StringComparison.OrdinalIgnoreCase)
+                ? "A profile with this name already exists."
+                : null;
+
         internal static string? ValidateProfileName(string? name)
         {
             if (string.IsNullOrWhiteSpace(name)) return "Enter a name for the profile.";
@@ -2384,20 +2489,6 @@ namespace Jellyfin.Profiles.Controllers
                 return "A profile name can use letters, numbers, spaces and - ' . _ @ +.";
 
             return null;
-        }
-
-        /// <summary>
-        /// Why <paramref name="name"/> cannot be a profile's name because an account already uses it,
-        /// or null (R-1336). Jellyfin's <c>AuthenticateUser</c> looks a typed name up with
-        /// <c>GetUserByName</c> before asking any provider, so a "Bob" tile signs in as the real Bob:
-        /// it can never open, and each wrong PIN counts against Bob. <paramref name="except"/> is an
-        /// account allowed to keep its own name.
-        /// </summary>
-        internal static string? ValidateProfileNameFree(IUserManager users, string? name, Guid? except = null)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return null;
-            var taken = users.GetUserByName(name.Trim());
-            return taken != null && taken.Id != except ? "A user with this name already exists." : null;
         }
 
         /// <summary>
@@ -2553,7 +2644,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Rejected image for {Context} — '{Header}' is not a format this plugin stores.",
-                    context, header.Length > 64 ? header.Substring(0, 64) : header);
+                    context, Auth.LogText.Clean(header.Length > 64 ? header.Substring(0, 64) : header));
                 return (null, null, notSupported);
             }
 
@@ -2913,7 +3004,7 @@ namespace Jellyfin.Profiles.Controllers
                 {
                     _logger.LogWarning(
                         "ProfilesPlugin: Asked for starter avatar '{Avatar}', which is unknown or switched off.",
-                        libraryAvatarId);
+                        Auth.LogText.Clean(libraryAvatarId));
                     return false;
                 }
 
@@ -2950,7 +3041,7 @@ namespace Jellyfin.Profiles.Controllers
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: Asked for library avatar '{Avatar}', which does not exist.",
-                    libraryAvatarId);
+                    Auth.LogText.Clean(libraryAvatarId));
                 return false;
             }
 

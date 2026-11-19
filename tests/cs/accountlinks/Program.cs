@@ -177,7 +177,7 @@ World.MappedNow = id => Row(id) is object mr && (Guid)mapType.GetProperty("Maste
         : p.ParameterType == typeof(MediaBrowser.Controller.Devices.IDeviceManager) ? DeviceStub.Create()
         : p.ParameterType == typeof(INetworkManager) ? NetworkStub.Create()
         : p.ParameterType == typeof(ILibraryManager) ? Loose<ILibraryManager>.Create()
-        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(NullLogger<>).MakeGenericType(ctrlType))
+        : p.ParameterType.Name.StartsWith("ILogger") ? Activator.CreateInstance(typeof(CallLog<>).MakeGenericType(ctrlType))
         : (object)null).ToArray();
     var c = (ControllerBase)ctor.Invoke(args);
     var http = new DefaultHttpContext
@@ -445,8 +445,14 @@ Ok("the household's own still are, unmarked", Tile(KID) != null && !(bool)P(Tile
 
 r = Call("SwitchProfile", HOME, B(("ProfileId", DAD)));
 Ok("/switch opens an added account with no PIN", r.status == 200 && sessionStub.Opened.Contains(DAD), Text(r));
-r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "0000")));
+CallLines.All.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "0000")), deviceId: "den-tv");
 Ok("one with a PIN refuses the wrong one", r.status == 400 && !sessionStub.Opened.Contains(MUM), Text(r));
+// A report of "it would not let me in" is answered by this line: the rule, who, and which app.
+var refusal = CallLines.All.FirstOrDefault(l => l.Contains("wrong PIN")) ?? "";
+Ok("and the log says it was the wrong PIN, at Information", refusal.StartsWith("Information: ProfilesPlugin: Switch refused, wrong PIN"), string.Join(" | ", CallLines.All));
+Ok("naming the device and the app that asked", refusal.Contains("Firefox") && refusal.Contains("Jellyfin Web"), refusal);
+Ok("and never the PIN", !CallLines.All.Any(l => l.Contains("0000")), string.Join(" | ", CallLines.All));
 r = Call("SwitchProfile", HOME, B(("ProfileId", MUM), ("Pin", "4321")));
 Ok("and opens with the right one", r.status == 200 && sessionStub.Opened.Contains(MUM), Text(r));
 r = Call("SwitchProfile", OTHER, B(("ProfileId", DAD)));
@@ -458,7 +464,9 @@ Ok("and the added account sees nothing of the household", Refused(r), Text(r));
 // checked only the target's own account, and a profile's is never the one that was turned off.
 var kidOpened = sessionStub.Opened.Count(x => x == KID);
 world.Disabled.Add(HOME);
-r = Call("SwitchProfile", HOME, B(("ProfileId", KID)));
+CallLines.All.Clear();
+r = Call("SwitchProfile", HOME, B(("ProfileId", KID)), deviceId: "den-tv");
+Ok("and the log names that rule, not a bare id", CallLines.All.Any(l => l.StartsWith("Information: ProfilesPlugin: Switch refused, the main account is turned off")), string.Join(" | ", CallLines.All));
 Ok("a profile whose main account is turned off cannot be entered", r.status == 400 && sessionStub.Opened.Count(x => x == KID) == kidOpened, Text(r));
 Ok("and says the account is turned off, so the app can show why", Text(r).Contains("account is turned off"), Text(r));
 world.Disabled.Remove(HOME);
@@ -654,18 +662,23 @@ Ok("never one in a Bonfire", r.status == 400 && (string)r.value == "It's in a Bo
 groups.Remove(group);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "kid")));
 Ok("a name the household already has is refused", r.status == 400 && (string)r.value == "A profile with this name already exists.", Text(r));
-// A display name that is someone's username (R-1336). Jellyfin looks a typed name up as a
-// username first, so a "Mum" tile reached the real Mum, who could never sign in, and every
-// wrong PIN counted against her. Refused wherever a name is set; an account keeps its own name.
-r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "mum")));
-Ok("a name that is another account's username is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
-// Creating one gets as far as making the account when it is not refused, which this
-// world cannot do: that surfaces as an exception, and a failed case rather than a crash.
-try { r = Call("CreateProfile", HOME, B(("ProfileName", "Dad"), ("MasterPin", "1234"))); }
+// A profile named like its own main account is refused: one household, two tiles of the same
+// name. Another account's username is not (from 2.0.1, #46): a sign-in screen marks the tile so it
+// cannot sign in as that account (ProfileNameRewriter.ClashMarker), and refusing it made a household
+// rename a profile because of an account it has nothing to do with.
+r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME), ("ProfileName", "parent")));
+Ok("a name that is the household's main account is refused, whatever its case", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+try { r = Call("CreateProfile", HOME, B(("ProfileName", "Parent"), ("MasterPin", "1234"))); }
 catch (Exception ex) { r = (-1, "threw " + (ex.InnerException ?? ex).GetType().Name); }
 Ok("so is creating a profile with it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
-r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "mum"), ("MasterPin", "1234")));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "PARENT"), ("MasterPin", "1234")));
 Ok("so is renaming one to it", r.status == 400 && ((string)r.value).Contains("already exists"), Text(r));
+// Creating one gets as far as making the account when it is not refused, which this world
+// cannot do: that surfaces as an exception, which here means it was not refused for its name.
+try { r = Call("CreateProfile", HOME, B(("ProfileName", "Dad"), ("MasterPin", "1234"))); }
+catch (Exception ex) { r = (-1, "threw " + (ex.InnerException ?? ex).GetType().Name); }
+Ok("creating a profile named like another household's account is not refused for its name",
+   !(r.status == 400 && ((string)r.value).Contains("already exists")), Text(r));
 cfgType.GetProperty("MaxProfilesPerUser").SetValue(config, 1);
 r = Call("MakeProfile", ADMIN, B(("UserId", DAD), ("HouseholdId", HOME)));
 Ok("past the household's limit is refused", r.status == 400 && ((string)r.value).StartsWith("Maximum profile limit"), Text(r));
@@ -674,6 +687,10 @@ Ok("and none of that changed anything", world.Log.Count == 0 && P(Row(DAD), "Mas
 // (After that check: this one is a real update and logs its writes.)
 r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "Kid"), ("MasterPin", "1234")));
 Ok("a profile keeping its own name is not stopped by the name check", r.status == 200, Text(r));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "mum"), ("MasterPin", "1234")));
+Ok("renaming a profile to another household's account name is allowed", r.status == 200, Text(r));
+r = Call("UpdateProfile", HOME, B(("ProfileId", KID), ("ProfileName", "Kid"), ("MasterPin", "1234")));
+Ok("(and back)", r.status == 200, Text(r));
 world.Log.Clear();
 
 // R-1070: the password change is the step that can fail, and it came after the account had
@@ -927,6 +944,20 @@ try { Directory.Delete(tempDir, true); } catch { }
 return Finish();
 
 // ── A modelled Jellyfin ────────────────────────────────────────────────────
+
+// What the controller logged across every Call, as "Level: text". Kept so a refusal can be asked
+// which rule decided it, which is what a bug report has to answer.
+public static class CallLines { public static readonly List<string> All = new(); }
+
+public sealed class CallLog<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (CallLines.All) CallLines.All.Add(logLevel + ": " + formatter(state, exception));
+    }
+}
 
 public sealed class CaptureLog : Microsoft.Extensions.Logging.ILogger
 {

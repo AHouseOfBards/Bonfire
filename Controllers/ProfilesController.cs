@@ -426,7 +426,10 @@ namespace Jellyfin.Profiles.Controllers
             // this one door open.
             if (!ManagementAllowed(masterUserId, config, request.MasterPin, out var pinRefusal)) return pinRefusal!;
 
-            var nameError = ValidateProfileName(request.ProfileName) ?? ValidateProfileNameFree(_userManager, request.ProfileName);
+            // A name that is another account's username is allowed: a sign-in screen marks it
+            // (ProfileNameRewriter.ClashMarker). One the household already has is refused below, where the
+            // system username is built.
+            var nameError = ValidateProfileName(request.ProfileName);
             if (nameError != null) return BadRequest(nameError);
 
             // One creation at a time. The limit is counted before the account is created and
@@ -496,6 +499,9 @@ namespace Jellyfin.Profiles.Controllers
                 ? CheckLibraryAvatar(request.AvatarLibraryId)
                 : CheckProfileImage(Guid.Empty, request.ProfileImage, null);
             if (pictureError != null) return BadRequest(pictureError);
+
+            var mainNameError = ValidateNotMainAccountName(profileName, masterUser.Username);
+            if (mainNameError != null) return BadRequest(mainNameError);
 
             string systemUsername = $"{masterUser.Username}_{profileName.Replace(" ", "")}";
 
@@ -890,6 +896,7 @@ namespace Jellyfin.Profiles.Controllers
                 _logger.LogWarning(
                     "ProfilesPlugin: Blocked Bonfire switch from {Caller} into unprotected account {Target}.",
                     callerMasterUserId, request.ProfileId);
+                LogRefusal("Switch refused, the account is not one this caller may open", request.ProfileId);
                 return BadRequest(rules.Refusal);
             }
 
@@ -915,9 +922,7 @@ namespace Jellyfin.Profiles.Controllers
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: device check refused a switch into {ProfileId} ({Reason}).",
-                    request.ProfileId, deviceAccess);
+                LogRefusal("Switch refused by the device check (" + deviceAccess + ")", request.ProfileId);
                 return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
@@ -926,8 +931,10 @@ namespace Jellyfin.Profiles.Controllers
             var pinHashToCheck = mapping?.PinHash;
             if (!string.IsNullOrEmpty(pinHashToCheck))
             {
-                bool bypass = CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass,
-                    isTrusted: IsTrustedFor(mapping, remoteIp, config));
+                // An app set to ask every time is never skipped; it can only make this stricter.
+                bool bypass = !request.AlwaysAsk
+                    && CanSkipPin(mapping, isLocal, isCrossAccountMasterSwitch, householdLanBypass,
+                        isTrusted: IsTrustedFor(mapping, remoteIp, config));
 
                 if (bypass)
                 {
@@ -951,6 +958,7 @@ namespace Jellyfin.Profiles.Controllers
                     // mapping is non-null here: pinHashToCheck came from it.
                     if (!VerifyPinAndUpgrade(request.Pin, mapping!))
                     {
+                        LogRefusal("Switch refused, wrong PIN", request.ProfileId);
                         return BadRequest("Invalid PIN code.");
                     }
 
@@ -974,9 +982,7 @@ namespace Jellyfin.Profiles.Controllers
             // fallback.
             if (_userManager.GetUserDto(targetUser, string.Empty).Policy?.IsDisabled == true)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: refused a switch into {ProfileId}, whose account is disabled.",
-                    request.ProfileId);
+                LogRefusal("Switch refused, the profile's account is turned off", request.ProfileId);
                 return BadRequest("This profile's account is turned off on the server.");
             }
 
@@ -984,9 +990,7 @@ namespace Jellyfin.Profiles.Controllers
             // turned off, so its profiles stayed enterable (R-1135).
             if (MainAccountDisabled(_userManager, mapping))
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: refused a switch into {ProfileId}, whose main account is disabled.",
-                    request.ProfileId);
+                LogRefusal("Switch refused, the main account is turned off", request.ProfileId);
                 return BadRequest("This profile's main account is turned off on the server.");
             }
 
@@ -1180,9 +1184,7 @@ namespace Jellyfin.Profiles.Controllers
                 mapping, GetAuthorizationParameter("DeviceId"), config.KnownDevices, config.Mappings);
             if (deviceAccess != DeviceAccess.NotRestricted && deviceAccess != DeviceAccess.Allowed)
             {
-                _logger.LogWarning(
-                    "ProfilesPlugin: device check refused a PIN verification for {ProfileId} ({Reason}).",
-                    request.ProfileId, deviceAccess);
+                LogRefusal("PIN check refused by the device check (" + deviceAccess + ")", request.ProfileId);
                 return BadRequest(DeviceAccessMessage(deviceAccess));
             }
 
@@ -1202,19 +1204,21 @@ namespace Jellyfin.Profiles.Controllers
 
             if (rules.Refusal != null)
             {
+                LogRefusal("PIN check refused, the account is not one this caller may open", request.ProfileId);
                 return BadRequest(rules.Refusal);
             }
 
             var target = rules.Target;
             if (target != null && !string.IsNullOrEmpty(target.PinHash)
-                && !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass,
-                    isTrusted: IsTrustedFor(target, remoteIp, config)))
+                && (request.AlwaysAsk || !CanSkipPin(target, isLocal, rules.CrossHousehold, rules.HouseholdLanBypass,
+                    isTrusted: IsTrustedFor(target, remoteIp, config))))
             {
                 var limited = BeginPinAttempt(rateLimitKey, request.ProfileId);
                 if (limited != null) return limited;
 
                 if (!VerifyPinAndUpgrade(request.Pin, target))
                 {
+                    LogRefusal("PIN check refused, wrong PIN", request.ProfileId);
                     return BadRequest("Invalid PIN.");
                 }
 
@@ -1674,7 +1678,7 @@ namespace Jellyfin.Profiles.Controllers
 
             _logger.LogInformation(
                 "ProfilesPlugin: administrator signed out {UserId} on device {DeviceId}.",
-                request.UserId, request.DeviceId);
+                request.UserId, Auth.LogText.Clean(request.DeviceId));
 
             return Ok(new { signedOut = devices.Count });
         }
@@ -1999,6 +2003,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = incoming.EnableClientProfileList;
                 if (TryProperty(root, "ClientPinLoginFromAnywhere", out _))
                     config.ClientPinLoginFromAnywhere = incoming.ClientPinLoginFromAnywhere;
+                if (TryProperty(root, "ClientNoPinHomeOnly", out _))
+                    config.ClientNoPinHomeOnly = incoming.ClientNoPinHomeOnly;
                 // The export leaves the emergency code out, so a file without one keeps the
                 // server's own. A file from before that still carries it, and it is taken.
                 if (!string.IsNullOrEmpty(incoming.PanicCodeHash))
@@ -2096,7 +2102,7 @@ namespace Jellyfin.Profiles.Controllers
             "LinkedAccounts", "UserProfileLimitOverrides", "AvatarLibrary", "DisallowCustomAvatarUploads",
             "ProfileImageQuality", "DefaultAskOnStartup", "DefaultSwitcherLocation", "CustomFonts", "CustomThemes",
             "HiddenThemes", "LogoImage", "LogoText", "LogoAlt", "LogoCorners", "DefaultTheme", "DefaultTimeZone", "AllowProfileThemes",
-            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
+            "EnableClientPinLogin", "EnableClientProfileList", "ClientPinLoginFromAnywhere", "ClientNoPinHomeOnly", "PanicCodeHash", "ProxyClients", "TrustedAddressEntries",
             "Announcements", "AccountEmails",
         };
 
@@ -2173,16 +2179,9 @@ namespace Jellyfin.Profiles.Controllers
                     return Unauthorized("Unauthorized profile update attempt.");
                 }
 
-                // A new name must not be an account's username (R-1336). One it already has is
-                // left alone, so a profile named before this check can still be edited.
-                // Not ProfileName?.Trim(): ValidateProfileName above has refused a missing name,
-                // and the "?." told the compiler it might be null from here on, which failed
-                // the -warnaserror build at the two later .Trim() calls.
-                if (!string.Equals(mapping.ProfileName, request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase))
-                {
-                    var takenError = ValidateProfileNameFree(_userManager, request.ProfileName, request.ProfileId);
-                    if (takenError != null) return BadRequest(takenError);
-                }
+                // A name that is another account's username is allowed: a sign-in screen marks it
+                // (ProfileNameRewriter.ClashMarker). One the household already has is refused below,
+                // where the new system username is checked.
             }
 
             if (!string.IsNullOrEmpty(request.Pin))
@@ -2248,6 +2247,13 @@ namespace Jellyfin.Profiles.Controllers
             // changed the picture (ST-11).
             if (request.ProfileId != masterUserId)
             {
+                // Only a new name. A profile already named like its main account (made before this
+                // check, or an adopted account) must still save its PIN, picture and limits, the way
+                // the username check below lets an unchanged name through.
+                var renamed = !string.Equals(existingMapping?.ProfileName?.Trim(), request.ProfileName.Trim(), StringComparison.OrdinalIgnoreCase);
+                var mainNameError = renamed ? ValidateNotMainAccountName(request.ProfileName, masterUser.Username) : null;
+                if (mainNameError != null) return BadRequest(mainNameError);
+
                 var wantedUsername = $"{masterUser.Username}_{request.ProfileName.Trim().Replace(" ", "")}";
                 if (!string.Equals(targetUser.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)
                     && GetAllUsers().Any(u => string.Equals(u.Username, wantedUsername, StringComparison.OrdinalIgnoreCase)))
@@ -4232,6 +4238,8 @@ namespace Jellyfin.Profiles.Controllers
             List<KnownDevice> devices;
             lock (ConfigLock)
             {
+                var lookAlikes = Auth.DeviceRegistry.LookAlikes(config, masterUserId);
+
                 // Copied out under the lock before the names are touched: the scoping step
                 // synthesizes records for whitelisted devices no longer in the list, and
                 // DisambiguateDeviceNames writes to what it is handed. Renaming the live
@@ -4245,7 +4253,8 @@ namespace Jellyfin.Profiles.Controllers
                         Client = d.Client,
                         LastSeen = d.LastSeen,
                         MasterUserId = d.MasterUserId,
-                        NameIsCustom = d.NameIsCustom
+                        NameIsCustom = d.NameIsCustom,
+                        LooksLike = d.DeviceId != null && lookAlikes.TryGetValue(d.DeviceId, out var like) ? like : null
                     })
                     .ToList();
             }
@@ -4463,6 +4472,54 @@ namespace Jellyfin.Profiles.Controllers
         /// <summary>
         /// Renames a device in the picker. The name sticks: see <c>KnownDevice.NameIsCustom</c>.
         /// </summary>
+        /// <summary>
+        /// The main account's answer to "Same device as X?" when it is no: this device is not asked
+        /// about that one again. Yes is <c>devices/merge</c>.
+        /// </summary>
+        [HttpPost("devices/not-same")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public ActionResult NotSameDevice([FromBody] NotSameDeviceRequest request)
+        {
+            var config = Plugin.Instance?.Configuration;
+            if (config == null) return BadRequest("Plugin configuration missing.");
+
+            var currentUserIdVal = GetCurrentUserId();
+            if (currentUserIdVal == null) return Unauthorized();
+            Guid masterId = currentUserIdVal.Value;
+
+            var currentMapping = FindMapping(masterId);
+            if (currentMapping != null && currentMapping.MasterUserId != masterId)
+                return Unauthorized("Only the master profile can manage devices.");
+
+            if (!ManagementAllowed(masterId, config, null, out var pinRefusal)) return pinRefusal!;
+
+            if (string.IsNullOrWhiteSpace(request.DeviceId) || string.IsNullOrWhiteSpace(request.OtherDeviceId))
+                return BadRequest("Both devices are required.");
+
+            lock (ConfigLock)
+            {
+                var device = config.KnownDevices.FirstOrDefault(d =>
+                    string.Equals(d.DeviceId, request.DeviceId, StringComparison.OrdinalIgnoreCase)
+                    && d.OwnedBy(masterId));
+                var other = config.KnownDevices.FirstOrDefault(d =>
+                    string.Equals(d.DeviceId, request.OtherDeviceId, StringComparison.OrdinalIgnoreCase)
+                    && d.OwnedBy(masterId));
+                if (device == null || other == null || device == other)
+                    return BadRequest("Both devices must be ones this account has used.");
+
+                if (!(device.NotSameAs ?? new List<string>()).Any(x => other.Answers(x)))
+                {
+                    var list = (device.NotSameAs ?? new List<string>()).Append(other.DeviceId).ToList();
+                    device.NotSameAs = list.Skip(Math.Max(0, list.Count - KnownDevice.MaxAliases)).ToList();
+                    Plugin.Instance?.SaveConfiguration();
+                }
+            }
+
+            return Ok();
+        }
+
         [HttpPost("devices/rename")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -4632,8 +4689,8 @@ namespace Jellyfin.Profiles.Controllers
                 "ProfilesPlugin: EMERGENCY DISABLE activated from {Ip} (device '{Device}', client '{Client}'). " +
                 "The profile switcher is now inert and will stay that way until Jellyfin is restarted.",
                 ip,
-                GetAuthorizationParameter("Device") ?? "unknown",
-                GetAuthorizationParameter("Client") ?? "unknown");
+                Auth.LogText.Clean(GetAuthorizationParameter("Device") ?? "unknown"),
+                Auth.LogText.Clean(GetAuthorizationParameter("Client") ?? "unknown"));
 
             LogActivity("Bonfire was switched off with the emergency code", "EmergencyDisable", Guid.Empty,
                 "From " + ip + ". It stays off until Jellyfin restarts.", LogLevel.Error);
@@ -5233,6 +5290,7 @@ namespace Jellyfin.Profiles.Controllers
                     ClientProfileList = config?.EnableClientProfileList == true,
                     SkipQuickConnectOnKnownDevices = config?.SkipQuickConnectOnKnownDevices == true,
                     ProfileThemes = config?.AllowProfileThemes != false,
+                    ClientThemes = config?.ClientThemes == true,
                     ProxyClients = config?.ProxyClients ?? new List<string>(),
                     RequireMainPin = config?.RequireMainPin == true,
                     Email = config != null && Features.Available(Features.Email, config),
@@ -5800,6 +5858,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.AllowProfileThemes = request.AllowProfileThemes.Value;
                 if (request.RichThemeMotion.HasValue)
                     config.RichThemeMotion = request.RichThemeMotion.Value;
+                if (request.ClientThemes.HasValue)
+                    config.ClientThemes = request.ClientThemes.Value;
 
                 // Two switches rather than one, because they carry different risks: the first
                 // changes how a profile authenticates, the second edits the endpoint every client
@@ -5810,6 +5870,8 @@ namespace Jellyfin.Profiles.Controllers
                     config.EnableClientProfileList = request.EnableClientProfileList.Value;
                 if (request.ClientPinLoginFromAnywhere.HasValue)
                     config.ClientPinLoginFromAnywhere = request.ClientPinLoginFromAnywhere.Value;
+                if (request.ClientNoPinHomeOnly.HasValue)
+                    config.ClientNoPinHomeOnly = request.ClientNoPinHomeOnly.Value;
                 if (request.SkipQuickConnectOnKnownDevices.HasValue)
                     config.SkipQuickConnectOnKnownDevices = request.SkipQuickConnectOnKnownDevices.Value;
                 if (request.ProxyClients != null)

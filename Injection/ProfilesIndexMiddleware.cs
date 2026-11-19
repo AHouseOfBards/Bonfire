@@ -158,10 +158,12 @@ namespace Jellyfin.Profiles
                 // Whether Jellyfin puts the caller at home, decided here because the provider is handed
                 // nothing about the request: the address after Jellyfin's known proxies (ClientAddress),
                 // judged by its INetworkManager as elsewhere in this file. Unknown is not home (R-1334).
+                // The address too, for trusted addresses (the provider reads Auth.RequestDevice.Address).
                 bool atHome;
+                System.Net.IPAddress? from = null;
                 try
                 {
-                    var from = Auth.ClientAddress.Of(context);
+                    from = Auth.ClientAddress.Of(context);
                     atHome = from != null && networkManager != null && networkManager.IsInLocalNetwork(from);
                 }
                 catch (Exception ex)
@@ -179,7 +181,8 @@ namespace Jellyfin.Profiles
                         context.Request.Headers["Authorization"],
                         context.Request.Headers["X-Emby-Authorization"],
                         "Client"),
-                    atHome);
+                    atHome,
+                    from);
 
                 // Every POST here may sign somebody in. The note is started in this method so it flows down
                 // to the PIN provider (which marks a PIN or an empty box) and the session listener (which
@@ -247,8 +250,8 @@ namespace Jellyfin.Profiles
                     _logger.LogInformation(
                         "ProfilesPlugin: Quick Connect declined for {Device} ({Client}), a device this "
                         + "server has seen someone sign in on, so the app opens on its PIN field instead.",
-                        qcDevice,
-                        qcClient);
+                        Auth.LogText.Clean(qcDevice),
+                        Auth.LogText.Clean(qcClient));
 
                     // The status and wording Jellyfin returns when Quick Connect is off server-wide, so the
                     // client takes a path it already has.
@@ -270,7 +273,7 @@ namespace Jellyfin.Profiles
             // afterwards. See ProfileNameRewriter.
             if (IsOwnUserPath(context))
             {
-                await RewriteOwnNameAsync(context).ConfigureAwait(false);
+                await RewriteOwnNameAsync(context, userManager).ConfigureAwait(false);
                 return;
             }
 
@@ -290,6 +293,14 @@ namespace Jellyfin.Profiles
             {
                 await InjectPublicUsersAsync(context, userManager, deviceManager).ConfigureAwait(false);
                 return;
+            }
+
+            // The list is not ours to add to, and until this said so it left nothing in the log: issue #46
+            // looked for "user list requested" and found no line at all. Rate-limited like the
+            // declines in PublicUserInjector, since the route is anonymous.
+            if (IsPublicUsersRequest(context))
+            {
+                LogSkippedUserList(context, PublicUsersSkipReason(Plugin.Instance?.Configuration, null));
             }
 
             if (!ShouldHandle(context, serverConfig, appHost))
@@ -350,11 +361,14 @@ namespace Jellyfin.Profiles
 
             // An app that gets the picker signs in as the main account only; a profile signed in
             // directly there is refused, so listing them would offer tiles that fail.
-            if (Auth.ProxyClients.IsEnabled(config, Controllers.ProfilesBaseController.ParseAuthorizationParameter(
-                    context.Request.Headers[HeaderNames.Authorization],
-                    context.Request.Headers["X-Emby-Authorization"],
-                    "Client")))
+            var client = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                context.Request.Headers[HeaderNames.Authorization],
+                context.Request.Headers["X-Emby-Authorization"],
+                "Client");
+            var skip = PublicUsersSkipReason(config, client);
+            if (skip != null)
             {
+                LogSkippedUserList(context, skip);
                 await _next(context).ConfigureAwait(false);
                 return;
             }
@@ -473,6 +487,34 @@ namespace Jellyfin.Profiles
             context.Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
 
             await context.Response.Body.WriteAsync(rewritten, context.RequestAborted).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Why a sign-in screen's user list is left as Jellyfin wrote it before the device is even
+        /// looked at, or null when it isn't. Words for the log, read by whoever is answering an issue.
+        /// </summary>
+        internal static string? PublicUsersSkipReason(PluginConfiguration? config, string? client)
+        {
+            if (config == null) return null;
+            if (!config.EnableClientProfileList)
+                return "\"Profiles on sign-in screens\" is off (Dashboard → Plugins → Bonfire → Clients)";
+            if (Auth.ProxyClients.IsEnabled(config, client))
+                return "the profile picker is on for this app (" + client?.Trim() + "), which signs in as the main account only";
+            return null;
+        }
+
+        /// <summary>Logs <paramref name="reason"/>: Information once per device per ten minutes, Debug otherwise.</summary>
+        private void LogSkippedUserList(HttpContext context, string? reason)
+        {
+            if (reason == null) return;
+            var deviceId = Controllers.ProfilesBaseController.ParseAuthorizationParameter(
+                context.Request.Headers[HeaderNames.Authorization],
+                context.Request.Headers["X-Emby-Authorization"],
+                "DeviceId");
+            _logger.Log(
+                Auth.SignInListLog.DeclineLevel(deviceId, DateTime.UtcNow),
+                "ProfilesPlugin: user list requested by device {DeviceId}; profiles not added: {Reason}.",
+                Auth.LogText.Clean(string.IsNullOrWhiteSpace(deviceId) ? "(none)" : deviceId), reason);
         }
 
         /// <summary>
@@ -604,7 +646,7 @@ namespace Jellyfin.Profiles
         /// Captures one of those responses and renames the profile inside it, or returns Jellyfin's own
         /// bytes untouched.
         /// </summary>
-        private async Task RewriteOwnNameAsync(HttpContext context)
+        private async Task RewriteOwnNameAsync(HttpContext context, IUserManager userManager)
         {
             var originalBody = context.Features.Get<IHttpResponseBodyFeature>();
             if (originalBody == null)
@@ -651,6 +693,7 @@ namespace Jellyfin.Profiles
                         produced,
                         context.Response.ContentType,
                         Controllers.ProfilesBaseController.ReadConfigSnapshot(),
+                        userManager,
                         _logger);
                 }
                 catch (Exception ex)
@@ -860,7 +903,7 @@ namespace Jellyfin.Profiles
         /// not redirect it to HTTPS. Nothing is answered here: a true result only marks that the page
         /// was requested, and the request goes on to the coordinator.
         /// </summary>
-        private static bool ShouldHandle(
+        private bool ShouldHandle(
             HttpContext context,
             IServerConfigurationManager serverConfig,
             IServerApplicationHost? appHost)
@@ -891,6 +934,12 @@ namespace Jellyfin.Profiles
                 // to be redirected would serve a page the browser is told to leave.
                 if (network.RequireHttps && !context.Request.IsHttps && ListensWithHttps(appHost))
                 {
+                    // Debug, and only for the page itself: this is every request on such a server.
+                    if (IsIndexPath(path, network.BaseUrl) || IsIndexPath(path, null))
+                    {
+                        _logger.LogDebug("ProfilesPlugin: the web page was not touched on this request, Jellyfin is about to redirect it to HTTPS.");
+                    }
+
                     return false;
                 }
 

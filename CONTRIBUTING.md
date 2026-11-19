@@ -12,6 +12,9 @@ This builds the plugin in Release with warnings as errors, then runs every harne
 The plugin builds for `net9.0` and `net10.0`. Only `net9.0` is released. To run the C#
 harnesses against the .NET 10 build, use `tests/run.sh cs10`.
 
+Every tool and version needed, per platform, is in [docs/toolchain.md](docs/toolchain.md).
+Change it in the same commit as a version bump; `tests/js/toolchain.js` checks it.
+
 ## Rules
 
 - **A new test must fail first.** Run it against a build that has the bug and confirm it

@@ -33,8 +33,8 @@ Console.WriteLine("── The theme list ─────────────
 var Plain = new PluginConfiguration();
 PluginConfiguration Srv(string def, bool allow) => new PluginConfiguration { DefaultTheme = def, AllowProfileThemes = allow };
 
-var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "jellyfin-dark", "jellyfin-light", "high-contrast" };
-Ok("twelve themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
+var expected = new[] { "bonfire", "crimson", "starlight", "harbor", "nightfall", "glass", "harvest", "snowfall", "bloom", "moonfin", "jellyfin-dark", "jellyfin-light", "high-contrast" };
+Ok("thirteen themes, Bonfire first (" + string.Join(", ", Themes.All) + ")",
    Themes.All.SequenceEqual(expected));
 Ok("every id is lowercase, which is what the stylesheet keys on",
    Themes.All.All(id => id == id.ToLowerInvariant()));
@@ -125,7 +125,9 @@ using (var w = new StringWriter()) { serializer.Serialize(w, before); xml = w.To
 var old = System.Xml.Linq.XDocument.Parse(xml);
 old.Descendants().Where(e => e.Name.LocalName is "DefaultTheme" or "AllowProfileThemes" or "Theme" or "RichThemeMotion"
        // 1.7.2's lists did not exist then either.
-       or "CustomThemes" or "HiddenThemes" or "CustomFonts").ToList()
+       or "CustomThemes" or "HiddenThemes" or "CustomFonts"
+       // 2.0.1's client themes switch neither.
+       or "ClientThemes").ToList()
    .ForEach(e => e.Remove());
 Ok("the old document really has no theme elements",
    !old.Descendants().Any(e => e.Name.LocalName.Contains("Theme")));

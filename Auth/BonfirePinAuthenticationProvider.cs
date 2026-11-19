@@ -158,19 +158,31 @@ namespace Jellyfin.Profiles.Auth
                 _logger.LogInformation(
                     "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, which no household has "
                     + "signed in on, so there is no way to tell which profile was meant.",
-                    username,
-                    string.IsNullOrEmpty(sent) ? "(none sent)" : sent);
+                    LogText.Clean(username),
+                    LogText.Clean(string.IsNullOrEmpty(sent) ? "(none sent)" : sent));
                 throw Decline();
             }
 
             // Only this household, and never the master: it keeps its real username and must not become
-            // PIN-openable as a side effect of a name lookup.
+            // PIN-openable as a side effect of a name lookup. The marker a sign-in screen puts after a name
+            // that is another account's username comes back with it, and is taken off here
+            // (ProfileNameRewriter.ClashMarker). The device above was resolved from the name as sent,
+            // because that is what the app hashed.
+            var typed = ProfileNameRewriter.StripClashMarker(username);
             var mapping = config.Mappings.FirstOrDefault(m =>
                 m.MasterUserId == master
                 && m.ProfileUserId != master
-                && string.Equals(m.ProfileName, username, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(m.ProfileName?.Trim(), typed, StringComparison.OrdinalIgnoreCase));
 
-            if (mapping == null) throw Decline();
+            if (mapping == null)
+            {
+                // Otherwise all the log says is Jellyfin's "Invalid username or password".
+                _logger.LogInformation(
+                    "ProfilesPlugin: sign-in as {Name} from device {DeviceId}, but household {Master} has no "
+                    + "profile of that name.",
+                    LogText.Clean(typed), LogText.Clean(deviceId), master);
+                throw Decline();
+            }
 
             var user = _services?.GetService(typeof(IUserManager)) is IUserManager users
                 ? users.GetUserById(mapping.ProfileUserId)
@@ -180,7 +192,7 @@ namespace Jellyfin.Profiles.Auth
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: {Name} resolved to profile {ProfileId}, which no longer exists.",
-                    username, mapping.ProfileUserId);
+                    LogText.Clean(username), mapping.ProfileUserId);
                 throw Decline();
             }
 
@@ -240,7 +252,7 @@ namespace Jellyfin.Profiles.Auth
                         "ProfilesPlugin: a PIN for master account {UserId} from device {DeviceId}, which it has "
                         + "not signed in on with its password; only the password is being checked.",
                         resolvedUser.Id,
-                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                        LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 }
                 else if (master != null && !Plugin.IsOff && LooksLikePin(password))
                 {
@@ -298,7 +310,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a direct sign-in to profile {ProfileId} on {Client}, which "
                     + "gets the profile picker instead.",
                     mapping.ProfileUserId,
-                    RequestDevice.Client);
+                    LogText.Clean(RequestDevice.Client));
                 throw Decline();
             }
 
@@ -321,7 +333,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId} from device "
                     + "{DeviceId} ({Reason}).",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId,
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId),
                     access);
 
                 // Declined with the message every other refusal carries, so a response cannot say which
@@ -329,22 +341,38 @@ namespace Jellyfin.Profiles.Auth
                 throw Decline();
             }
 
-            // From outside the home network, a profile with no PIN or with a device list does not open
-            // here (R-1334). Both rest on a device id the client supplies, and the device-list and
-            // known-device checks below pass for anybody who has seen a household's id: "PIN login on other
-            // apps" on was enough to open a PIN-less profile from the internet. A PIN stays the credential,
-            // so a profile with one and no list is untouched. The administrator may allow it from anywhere
-            // (ClientPinLoginFromAnywhere); the default is home. Declined with the usual message.
-            if ((string.IsNullOrEmpty(mapping.PinHash)
-                    || access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted)
-                && config?.ClientPinLoginFromAnywhere != true
-                && !RequestDevice.IsLocal)
+            // From outside the home network, a profile with a device list does not open here (R-1334). The
+            // list rests on a device id the client supplies, which passes for anybody who has seen it. A PIN
+            // stays the credential, so a profile with one and no list is untouched. The administrator may
+            // allow it from anywhere (ClientPinLoginFromAnywhere); the default is home. Declined with the
+            // usual message.
+            //
+            // An address the administrator trusted for this household counts as home (2.0.1): a household
+            // whose server is somewhere else had its PIN-less profiles refused on its own television, while
+            // the web switcher and the picker already opened them from that address (#42). Same lookup as
+            // theirs, on the address Jellyfin resolved, never a header read here.
+            //
+            // 2.0.1 also stopped refusing a PIN-less profile from away by default. Almost every household
+            // is not where its server is, so "home only" meant a PIN-less profile never opened on any
+            // television they owned (Logan). It still needs a device the household signed in on with a
+            // password, checked below, which is the rule PINs follow. ClientNoPinHomeOnly puts the old
+            // rule back for a server that wants it; ClientPinLoginFromAnywhere now covers device lists only.
+            bool noPin = string.IsNullOrEmpty(mapping.PinHash);
+            bool awayRefused = noPin
+                ? config?.ClientNoPinHomeOnly == true
+                    || (access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
+                        && config?.ClientPinLoginFromAnywhere != true)
+                : access != Controllers.ProfilesBaseController.DeviceAccess.NotRestricted
+                    && config?.ClientPinLoginFromAnywhere != true;
+            if (awayRefused
+                && !RequestDevice.IsLocal
+                && !IsTrustedAddress(config, mapping))
             {
                 _logger.LogWarning(
                     "ProfilesPlugin: refused a client sign-in to profile {ProfileId}, which has {Why} and was "
                     + "asked for from outside the home network.",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(mapping.PinHash) ? "no PIN" : "a device list");
+                    noPin && config?.ClientNoPinHomeOnly == true ? "no PIN" : "a device list");
                 throw Decline();
             }
 
@@ -375,14 +403,14 @@ namespace Jellyfin.Profiles.Auth
                         + "which this household has not signed in on. Set a PIN on the profile to allow "
                         + "entry from anywhere.",
                         mapping.ProfileUserId,
-                        string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                        LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                     throw Decline();
                 }
 
                 _logger.LogInformation(
                     "ProfilesPlugin: profile {ProfileId} opened with no PIN on {DeviceId}, a device this "
                     + "household uses.",
-                    mapping.ProfileUserId, deviceId);
+                    mapping.ProfileUserId, LogText.Clean(deviceId));
                 return NotByPassword(resolvedUser);
             }
 
@@ -400,7 +428,7 @@ namespace Jellyfin.Profiles.Auth
                     "ProfilesPlugin: refused a PIN for profile {ProfileId} from device {DeviceId}, which this "
                     + "household has not signed in on.",
                     mapping.ProfileUserId,
-                    string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId);
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 throw Decline();
             }
 
@@ -430,6 +458,11 @@ namespace Jellyfin.Profiles.Auth
 
             if (result != PinHasher.PinResult.Match)
             {
+                // Never the PIN. At most five a quarter hour per account (BeginPinAttempt above).
+                _logger.LogInformation(
+                    "ProfilesPlugin: wrong PIN for profile {ProfileId} on a client, from device {DeviceId}.",
+                    mapping.ProfileUserId,
+                    LogText.Clean(string.IsNullOrEmpty(deviceId) ? "(none sent)" : deviceId));
                 throw Decline();
             }
 
@@ -642,6 +675,26 @@ namespace Jellyfin.Profiles.Auth
         /// profile" and "not ours" must be indistinguishable from outside, or the response enumerates
         /// which accounts are Bonfire profiles.
         /// </summary>
+        /// <summary>
+        /// Whether this sign-in comes from an address the administrator trusted for the profile's
+        /// household. Any doubt is no: no address, no list, or a lookup that throws.
+        /// </summary>
+        private bool IsTrustedAddress(Configuration.PluginConfiguration? config, Configuration.ProfileMapping mapping)
+        {
+            if (config?.TrustedAddressEntries == null || config.TrustedAddressEntries.Count == 0) return false;
+            try
+            {
+                var users = _services?.GetService(typeof(IUserManager)) as IUserManager;
+                return TrustedAddresses.Applies(
+                    config, RequestDevice.Address, mapping.MasterUserId, mapping.ProfileUserId,
+                    id => TrustedAddresses.IsAdministrator(users, id));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private static AuthenticationException Decline()
             => new AuthenticationException("Invalid username or password entered.");
     }

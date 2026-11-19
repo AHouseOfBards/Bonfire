@@ -21,7 +21,7 @@
 - A forgotten main PIN can be reset by email, if the administrator has set up email and turned this on. An administrator can also clear a PIN.
 - Install from Campground's plugin repository `https://ahouseofbards.github.io/Campground-Jellyfin/manifest.json`, then restart Jellyfin. Betas: see docs/beta-channel.md. On Docker, restart the container; the dashboard's Restart button often isn't enough. One build works on both 10.11 and 12.0.
 - Bonfire doesn't edit Jellyfin's `index.html` and doesn't need any other plugin. No script tag in `index.html` is normal.
-- Themes: twelve looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, the seasonal Harvest, Snowfall and Bloom, Jellyfin Dark and Jellyfin Light, and High contrast). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
+- Themes: thirteen looks for Bonfire's own screens (Bonfire, Crimson, Starlight, Harbor, Nightfall, Glass, the seasonal Harvest, Snowfall and Bloom, Moonfin, Jellyfin Dark and Jellyfin Light, and High contrast). Each profile can have its own, set from Settings → Theme on the main account. The administrator picks the default and can turn choosing off. The rest of Jellyfin keeps its own theme.
 - Custom themes: administrators can make their own in a theme editor, upload fonts and a server logo, and hide built-in themes. Theme files can be exported to and imported from Moonfin's theme editor.
 - Administrators can post announcements on the profile screen and close the server for maintenance. Profile switches are logged for 90 days.
 - Shared Bonfires: two accounts can link with a 6-character code so both households appear on one switcher.
@@ -55,3 +55,4 @@ Also published as a site with search: https://ahouseofbards.github.io/Bonfire/
 - [Beta channel](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/beta-channel.md)
 - [Contributing](https://github.com/AHouseOfBards/Bonfire/blob/main/.github/CONTRIBUTING.md)
 - [Translations](https://github.com/AHouseOfBards/Bonfire/blob/main/Web/i18n/README.md): adding a language
+- [Toolchain](https://github.com/AHouseOfBards/Bonfire/blob/main/docs/toolchain.md): every tool and version, per platform

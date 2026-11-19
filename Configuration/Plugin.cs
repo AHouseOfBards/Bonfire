@@ -122,6 +122,12 @@ namespace Jellyfin.Profiles
                     var fresh = Configuration;
                     fresh.RequireMainPin = true;
                     fresh.BonfireOn = false;
+                    // Profiles on the television's own sign-in screen, as a streaming service
+                    // has them. Only here: an upgrade keeps what it had, since these were off
+                    // before and turning them on changes how a household's devices sign in.
+                    fresh.EnableClientPinLogin = true;
+                    fresh.EnableClientProfileList = true;
+                    fresh.SkipQuickConnectOnKnownDevices = true;
                     SaveConfiguration();
                 }
             }

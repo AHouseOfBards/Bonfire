@@ -79,6 +79,10 @@ and editing profiles still needs one of the apps above.
 
 Turn it on under **Dashboard → Plugins → Bonfire → Clients**.
 
+**The list is empty on a new device.** Sign in once with the main account's password.
+After that, the app's user list shows the profiles. On Android TV, press the person icon at
+the top left. The app opens as the last account unless it is set to ask (see below).
+
 | App | Status |
 | --- | --- |
 | Jellyfin for Android TV | Confirmed on hardware. |
@@ -103,7 +107,7 @@ To set each app to ask:
   the profile → Security**.
 
 **Type the PIN where the app asks for a password.** A main account with no PIN still uses
-its real password. A profile with no PIN opens with the box left empty.
+its real password. A profile with no PIN opens with the box left empty, on a device the household has signed in on.
 
 **The main account is the weak point.** On a known device its PIN works instead of its
 password, and a saved sign-in opens it with neither. Anyone who can pick it on the sign-in

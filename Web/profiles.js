@@ -128,7 +128,7 @@
     /// in Web/themes/; tests/js/themes.js and tests/cs/themes hold the three together. A
     /// theme's name is the string theme.<id> (themeName) so "High contrast" can be translated;
     /// proper names (Bonfire, Harvest...) stay as they are in every language file.
-    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom',
+    const THEMES = ['bonfire', 'crimson', 'starlight', 'harbor', 'nightfall', 'glass', 'harvest', 'snowfall', 'bloom', 'moonfin',
         'jellyfin-dark', 'jellyfin-light', 'high-contrast'];
 
     /// First-time setup steps this script can draw (OnboardingSteps on the server). A newer
@@ -451,6 +451,52 @@
     ///
     /// Chromium 53: no object spread, no ?. (this runs on every webOS television).
     function themeCss(theme, patterns) {
+        /// A built-in pattern repeated as itself drew a grid anyone could see (Starlight's big
+        /// stars in rows, 2.0). So it is laid out as one larger tile: 3 by 3 copies, each turned or
+        /// mirrored differently. The kinds: 0 as drawn, 1 mirrored, 2 flipped, 3 half a turn, 4 a
+        /// quarter, 5 three quarters, 6 and 7 the two diagonal mirrors. Every picture in these files
+        /// sits inside its tile, so any arrangement joins up. Not waves (its lines run across the
+        /// edge into the next tile, so only the same tile joins them) and not an upload (it could
+        /// hold words). Hearts are only mirrored, so none is upside down. Moonfin uses the same table
+        /// (bonfirePatternCells); change both.
+        const PATTERN_TURNS = ['1 0 0 1', '-1 0 0 1', '1 0 0 -1', '-1 0 0 -1', '0 1 -1 0', '0 -1 1 0', '0 1 1 0', '0 -1 -1 0'];
+        function patternCells(name) {
+            if (name === 'hearts') return [0, 1, 0, 1, 0, 1, 0, 0, 1];
+            return ['blossoms', 'bubbles', 'confetti', 'embers', 'leaves', 'moons', 'snow', 'stars'].indexOf(name) >= 0
+                ? [0, 4, 3, 6, 1, 5, 2, 7, 4] : null;
+        }
+
+        /// A built-in pattern's SVG from its data: URI, with its size and its pictures (each
+        /// element after <defs>) apart, or null when it isn't one this can read.
+        function patternParts(uri) {
+            let svg;
+            try { svg = decodeURIComponent(uri.slice(uri.indexOf(',') + 1)); } catch (e) { return null; }
+            const open = /^\s*<svg\b([^>]*)>/.exec(svg), close = svg.lastIndexOf('</svg>');
+            if (!open || close < open[0].length) return null;
+            const w = Number((/\swidth=['"]([\d.]+)/.exec(open[1]) || [])[1]);
+            const h = Number((/\sheight=['"]([\d.]+)/.exec(open[1]) || [])[1]);
+            if (!(w > 0) || w !== h) return null;
+            let body = svg.slice(open[0].length, close);
+            const defs = /<defs\b[^>]*>[\s\S]*?<\/defs>/.exec(body);
+            if (defs) body = body.slice(0, defs.index) + body.slice(defs.index + defs[0].length);
+            const pictures = body.match(/<([a-zA-Z]+)\b[^>]*?(?:\/>|>[\s\S]*?<\/\1>)/g) || [];
+            return { size: w, defs: defs ? defs[0] : '', pictures: pictures };
+        }
+
+        /// [pictures] of a pattern laid out as [cells], as a data: URI. The cell is a <g> used nine
+        /// times, so the file grows by a line a cell, not by nine copies.
+        function laidOutPattern(parts, pictures, cells) {
+            const w = parts.size, half = w / 2, n = 3;
+            let out = "<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='"
+                + (w * n) + "' height='" + (w * n) + "'>" + parts.defs + "<defs><g id='jpf-cell'>" + pictures.join('') + '</g></defs>';
+            cells.forEach((k, i) => {
+                out += "<use xlink:href='#jpf-cell' transform='translate(" + ((i % n) * w + half) + ' ' + (Math.floor(i / n) * w + half)
+                    + ') matrix(' + PATTERN_TURNS[k] + ' 0 0) translate(' + (-half) + ' ' + (-half) + ")'/>";
+            });
+            return 'data:image/svg+xml,' + encodeURIComponent(out + '</svg>');
+        }
+
+
         if (!theme || typeof theme !== 'object') return '';
         const id = String(theme.id || '');
         if (!/^[a-z0-9-]{1,40}$/.test(id)) return '';
@@ -613,14 +659,25 @@
             : (d && /^[0-9a-f]{32}\.(png|webp)$/.test(String(d.image || ''))
                 ? String(typeof pluginUrl === 'function' ? pluginUrl('/plugins/profiles/themes/pattern-files/' + d.image) : '/plugins/profiles/themes/pattern-files/' + d.image).replace(/["\\\n\r]/g, '')
                 : null);
-        const patternImage = patternPicture(pattern);
-        const patternSize = pattern ? num(pattern.size, 240) : 240;
+        // A built-in one is laid out 3 by 3 (patternCells), so one repeat is three of its size;
+        // each picture stays the size the theme gave it. layout() leaves anything else as it was.
+        const layout = d => {
+            const uri = patternPicture(d);
+            const cells = uri && patterns && uri === patterns[d.image] ? patternCells(d.image) : null;
+            const parts = cells ? patternParts(uri) : null;
+            return parts ? { uri: laidOutPattern(parts, parts.pictures, cells), scale: 3, parts: parts, cells: cells }
+                : { uri: uri, scale: 1, parts: null, cells: null };
+        };
+        const laid = layout(pattern);
+        const patternImage = laid.uri;
+        const patternSize = (pattern ? num(pattern.size, 240) : 240) * laid.scale;
         // A second pattern, drawn above the first (::after, where the first is ::before). Only a
         // theme that has one gets any of its rules or variables, so every other theme is written as
         // before. It needs the first: the validator says so, and so does this.
         const pattern2 = patternImage ? deco('pattern2') : null;
-        const pattern2Image = patternPicture(pattern2);
-        const pattern2Size = pattern2Image ? num(pattern2.size, 240) : 240;
+        const laid2 = layout(pattern2);
+        const pattern2Image = laid2.uri;
+        const pattern2Size = (pattern2Image ? num(pattern2.size, 240) : 240) * laid2.scale;
         // 0.1 to 1, and 1 (today's look) writes nothing.
         const layerOpacity = d => (d && typeof d.opacity === 'number' && d.opacity >= 0.1 && d.opacity < 1 ? d.opacity : 1);
         const patternOpacity = layerOpacity(pattern);
@@ -939,7 +996,9 @@
         // first. Every moving decoration below writes the same three, and tests/js/a11y.js checks
         // each rule for them.
         if (patternImage && pattern.drift === 'down') {
-            const seconds = num(pattern.seconds, 32);
+            // `seconds` is per picture height, so a laid-out repeat three high takes three times
+            // as long at the same speed.
+            const seconds = num(pattern.seconds, 32) * laid.scale;
             // A name, so no '.': a size of 240.5 (the validator allows it) made "jpf-drift-240.5", which
             // is not an identifier and dropped the animation.
             const anim = 'jpf-drift-' + String(patternSize).replace(/[^0-9a-z]/gi, '-');
@@ -956,7 +1015,7 @@
         // The second pattern drifts the same way, on ::after, by its own size and seconds. The
         // keyframes are named by size, so two layers of one size share one pair.
         if (pattern2Image && pattern2.drift === 'down') {
-            const seconds2 = num(pattern2.seconds, 32);
+            const seconds2 = num(pattern2.seconds, 32) * laid2.scale;
             const anim2 = 'jpf-drift-' + String(pattern2Size).replace(/[^0-9a-z]/gi, '-');
             css += '@media (prefers-reduced-motion: no-preference) {\n'
                 + '    ' + sel + '.jpf-rich-motion:not(.jpf-flat) #profiles-gate-overlay::after {\n'
@@ -969,7 +1028,8 @@
         }
 
         // twinkle: a slow fade of the pattern between two layers, so the stars do not all dim
-        // together. The pattern's layer eases down to 45% and back; a second copy, shifted a third
+        // together. A built-in pattern is split in two (below). Otherwise (an upload) the
+        // pattern's layer eases down to 45% and back; a second copy, shifted a third
         // of a tile so its stars fall elsewhere, rises to 60% and back while the first is lowest.
         // Opacity only, which the compositor does without repainting. The same three conditions as
         // the drift. The second layer exists only inside them, so a screen that does not twinkle
@@ -992,6 +1052,29 @@
             if (pattern2Image) {
                 css += '@media (prefers-reduced-motion: no-preference) {\n'
                     + '    ' + over + '::before {\n        will-change: opacity;\n' + run(nameA) + '    }\n}\n' + keyframes;
+                return css;
+            }
+            // A built-in pattern twinkles as two halves of its pictures, every other one, one on
+            // each layer, fading half a loop apart. The shifted copy below dimmed one fixed set
+            // of stars and added a second set on top; this way every star twinkles, its neighbor
+            // is bright while it is dim, and together the layers are exactly the pattern.
+            // Moonfin deals the same pictures into three groups.
+            const halves = laid.parts && laid.parts.pictures.length >= 2
+                ? [0, 1].map(k => laidOutPattern(laid.parts, laid.parts.pictures.filter((x, i) => i % 2 === k), laid.cells))
+                : null;
+            if (halves) {
+                const nameS = 'jpf-twinkle-s' + tag;
+                const half = (period / 2) + 's';
+                css += '@media (prefers-reduced-motion: no-preference) {\n'
+                    + '    ' + over + '::before {\n        background-image: url("' + halves[0] + '");\n        will-change: opacity;\n' + run(nameS) + '    }\n'
+                    + '    ' + over + '::after {\n        content: \'\';\n        position: fixed;\n'
+                    + '        top: 0;\n        right: 0;\n        bottom: 0;\n        left: 0;\n'
+                    + '        background-image: url("' + halves[1] + '");\n        background-size: var(--jpf-deco-size) var(--jpf-deco-size);\n'
+                    + '        pointer-events: none;\n        z-index: -1;\n        will-change: opacity;\n'
+                    + run(nameS)
+                    + '        -webkit-animation-delay: -' + half + ';\n        animation-delay: -' + half + ';\n    }\n}\n'
+                    + '@-webkit-keyframes ' + nameS + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.2) + '; }\n}\n'
+                    + '@keyframes ' + nameS + ' {\n    0%, 100% { opacity: ' + sc(1) + '; }\n    50% { opacity: ' + sc(0.2) + '; }\n}\n';
                 return css;
             }
             css += '@media (prefers-reduced-motion: no-preference) {\n'
@@ -1316,9 +1399,9 @@
         'profileForm.mergeDeviceAria': 'Mark {name} as the same device as another',
         'profileForm.mergeDeviceTitle': 'Same device?',
         'profileForm.mergeDeviceMessage': 'These two become one device. Any profile allowed on either one stays allowed.',
-        'profileForm.tidyDevices': 'Tidy up duplicates',
-        'profileForm.tidyNone': 'No duplicates found.',
-        'profileForm.tidyFound': 'Possible duplicates: {count}. Merge them?',
+        'profileForm.lookAlike': 'Same device as {name}?',
+        'profileForm.lookAlikeSame': 'Same',
+        'profileForm.lookAlikeDifferent': 'Different',
         'profileForm.maximumRating': 'Rating limit',
         'profileForm.noRestrictions': 'No limit',
         'profileForm.ratingG': 'G / TV-G (6+)',
@@ -1513,6 +1596,7 @@
         'theme.harvest': 'Harvest',
         'theme.snowfall': 'Snowfall',
         'theme.bloom': 'Bloom',
+        'theme.moonfin': 'Moonfin',
         'theme.jellyfin-dark': 'Jellyfin dark',
         'theme.jellyfin-light': 'Jellyfin light',
         'theme.high-contrast': 'High contrast',
@@ -4170,9 +4254,21 @@
             // (.videoOsdBottom is the element [class*="videoOsd"] was reaching for).
             // Verified against jellyfin-web 10.11 src/controllers/playback/video/index.html
             // and recorded in tests/upstream-selectors.json.
-            const hasOsdDom = !!document.querySelector(
+            //
+            // Only an OSD on the page being shown counts. jellyfin-web keeps the last three
+            // pages in the DOM and hides the others with .hide (components/viewContainer.js,
+            // pageContainerCount), so after leaving the player its page stays behind, hidden,
+            // until two more pages have opened. Counted anyway, it held every page in
+            // 'videoosd' and the switcher stayed hidden after backing out of a video (#48).
+            // Every match, not the first: a page left behind can come before the one on screen.
+            // Still one query, and empty on nearly every tick.
+            const osdEls = document.querySelectorAll(
                 '.videoOsdBottom, .osdControls, .upNextContainer, .btnExitVideo'
             );
+            let hasOsdDom = false;
+            for (let i = 0; i < osdEls.length; i++) {
+                if (!osdEls[i].closest('.mainAnimatedPage.hide')) { hasOsdDom = true; break; }
+            }
 
             // ── Admin / server-management pages ─────────────────────────────────
             // Exception: our own settings page (configurationpage?name=Bonfire), the only
@@ -10677,11 +10773,21 @@
                 // Year 1 is an unset DateTime; see renderDeviceDropdown.
                 const seenStr = (seenDate && seenDate.getFullYear() > 1)
                     ? seenDate.toLocaleDateString() : t('profileForm.unknown');
+                // A device that looks like one a profile is allowed on (GET /devices, looksLike).
+                // The server will not merge those on a guess, so the main account is asked here.
+                const likeId = dev.looksLike || dev.LooksLike || '';
+                const like = likeId && (devices || []).find(d => (d.deviceId || d.DeviceId) === likeId);
+                const ask = like ? `
+                            <span class="jpf-device-lookalike" style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; font-size: 0.85rem;">
+                                <span>${t('profileForm.lookAlike', { name: escapeHtml(deviceListName(like)) })}</span>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-same-btn" data-id="${escapeHtml(id)}" data-into="${escapeHtml(likeId)}" style="padding: 2px 12px !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeSame')}</button>
+                                <button type="button" class="profiles-btn jpf-btn-secondary jpf-device-different-btn" data-id="${escapeHtml(id)}" data-other="${escapeHtml(likeId)}" style="padding: 2px 12px !important; width: auto !important; font-size: 0.85rem !important;">${t('profileForm.lookAlikeDifferent')}</button>
+                            </span>` : '';
                 return `
                     <div class="jpf-device-dropdown-item" data-device-id="${escapeHtml(id)}" data-device-detail="${escapeHtml(t('profileForm.deviceLastSeen', { client: client, date: seenStr }))}">
                         <span style="display: flex; flex-direction: column; min-width: 0; flex: 1;">
                             <span class="device-row-name" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(name)}</span>
-                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>
+                            <span style="font-size: 0.75rem; opacity: 0.6;">${t('profileForm.deviceLastSeen', { client: escapeHtml(client), date: seenStr })}</span>${ask}
                         </span>
                         <button type="button" class="jpf-device-rename-btn" data-id="${escapeHtml(id)}" data-name="${escapeHtml(name)}" title="${escapeHtml(t('profileForm.renameDevice'))}" aria-label="${escapeHtml(t('profileForm.renameDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">edit</span></button>
                         <button type="button" class="jpf-device-merge-btn" data-id="${escapeHtml(id)}" title="${escapeHtml(t('profileForm.mergeDevice'))}" aria-label="${escapeHtml(t('profileForm.mergeDeviceAria', { name: name }))}"><span class="material-icons" aria-hidden="true">swap_horiz</span></button>
@@ -10693,8 +10799,7 @@
                 : !devices.length
                     ? `<div class="jpf-form-hint">${t('profileForm.noDevicesYet')}</div>`
                     : `<div class="jpf-device-list">${devices.map(deviceRow).join('')}</div>
-                       <div class="jpf-form-hint">${t('account.devicesHint')}</div>
-                       <button type="button" id="devices-tidy-btn" class="profiles-btn jpf-btn-secondary device-tidy-btn">${t('profileForm.tidyDevices')}</button>`;
+                       <div class="jpf-form-hint">${t('account.devicesHint')}</div>`;
 
             content.innerHTML = `
                 <h1 class="profiles-title">${t('account.devicesTitle')}</h1>
@@ -10951,38 +11056,28 @@
                 });
             });
 
-            // A browser that mints a new id every time its site data is cleared leaves four or
-            // five identical rows, and merging a pair at a time is a chore nobody finishes.
-            // Two calls: the first only reports, the second acts.
-            const tidyBtn = content.querySelector('#devices-tidy-btn');
-            if (tidyBtn) {
-                tidyBtn.addEventListener('click', (e) => {
+            // "Same device as X?": yes merges this one into the allowed one, so the profile's list
+            // keeps the id it already names; no tells the server not to ask about that pair again.
+            content.querySelectorAll('.jpf-device-same-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    fetch(apiClient.getUrl('plugins/profiles/devices/merge-duplicates'), {
-                        method: 'POST',
-                        headers: this.manageHeaders(masterState.token)
-                    })
-                    .then(res => {
-                        this.checked(res);
-                        if (!res.ok) throw refusalError(res, t('errors.generic'));
-                        return res.json();
-                    })
-                    .then(data => {
-                        const count = (data.groups || [])
-                            .reduce((n, g) => n + (g.merge ? g.merge.length : 0), 0);
-                        if (!count) {
-                            this.showAlert(t('profileForm.tidyDevices'), t('profileForm.tidyNone'));
-                            return;
-                        }
-                        this.showConfirmDialog(
-                            t('profileForm.tidyDevices'),
-                            t('profileForm.tidyFound', { count: count }),
-                            () => deviceAction('merge-duplicates?apply=true', null, 'errors.failedMergeDevice'));
-                    })
-                    .catch(err => this.showAlert(t('errors.error'),
-                        this._failText(err, t('errors.generic'))));
+                    deviceAction('merge',
+                        { fromDeviceId: btn.getAttribute('data-id'), intoDeviceId: btn.getAttribute('data-into') },
+                        'errors.failedMergeDevice');
                 });
-            }
+            });
+            content.querySelectorAll('.jpf-device-different-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    deviceAction('not-same',
+                        { deviceId: btn.getAttribute('data-id'), otherDeviceId: btn.getAttribute('data-other') },
+                        'errors.generic');
+                });
+            });
+
+            // No Tidy up duplicates (2026-11-15): one browser's copies merge on the server by
+            // themselves (Auth.DeviceRegistry.MergeSameDevices), as a reinstalled TV's do. A button
+            // that has to be pressed was pressed by nobody, and the list filled with copies.
         },
 
         /// "Skip the PIN on my home network" only applies to a household the server has seen

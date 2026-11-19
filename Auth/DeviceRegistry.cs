@@ -46,9 +46,25 @@ namespace Jellyfin.Profiles.Auth
             // comparison in the plugin.
             var wanted = deviceId.Trim();
 
-            var exact = Lookup(config, wanted);
-            if (exact != Guid.Empty) return exact;
+            // The exact record is not returned straight away. It can be a sign-in screen's own id, kept
+            // on one household's record (KeepSignInScreenId), and a television two households use goes to
+            // whichever used it last, so it competes with the derived ones below.
+            var exactRow = LookupRow(config, wanted);
+            var best = exactRow != null && exactRow.MasterUserId != Guid.Empty ? exactRow : null;
+            foreach (var row in DerivedRows(config, wanted))
+            {
+                if (best == null || row.LastSeen > best.LastSeen) best = row;
+            }
 
+            return best?.MasterUserId ?? Guid.Empty;
+        }
+
+        /// <summary>
+        /// The records whose id is one of this device's per-account ids, for a device asking with its
+        /// plain id. See <see cref="FindMaster"/>.
+        /// </summary>
+        private static List<KnownDevice> DerivedRows(PluginConfiguration config, string wanted)
+        {
             // One television, two device ids. This made 1.6.1.7 useless. Some clients derive a per-user
             // device id once somebody is signed in and send the plain one when nobody is, which is the
             // sign-in screen we are answering.
@@ -66,12 +82,12 @@ namespace Jellyfin.Profiles.Auth
             // Every derivation is tried and the most recently seen record wins. It used to return the first
             // match in Mappings order, so a television two households had used showed the older household's
             // profiles.
-            KnownDevice? best = null;
+            var found = new List<KnownDevice>();
             void Consider(string id)
             {
                 var row = LookupRow(config, id);
-                if (row == null || row.MasterUserId == Guid.Empty) return;
-                if (best == null || row.LastSeen > best.LastSeen) best = row;
+                if (row == null || row.MasterUserId == Guid.Empty || found.Contains(row)) return;
+                found.Add(row);
             }
 
             foreach (var userId in HouseholdMembers(config))
@@ -94,7 +110,57 @@ namespace Jellyfin.Profiles.Auth
                 Consider(Sha1Hex(wanted + "+" + name));
             }
 
-            return best?.MasterUserId ?? Guid.Empty;
+            return found;
+        }
+
+        /// <summary>
+        /// Keeps a sign-in screen's plain id as an alias of the record it was placed by. True if the
+        /// configuration changed.
+        ///
+        /// <para>Jellyfin Android TV signs in with a different id for every account, all hashed from the
+        /// set's own id, which it sends only from its sign-in screen. Without that id the hashes cannot be
+        /// related: one television was four rows on the device list, and a profile limited to it was
+        /// refused under any account but the one whose row was ticked. The id used to be remembered for
+        /// 12 hours, in memory only (NoteSignInScreen), so a restart or a quiet day lost it.</para>
+        ///
+        /// <para>Proof, not a guess: the plain id hashes to a recorded id. Kept only when every record it
+        /// hashes to is one household's, so a television two households share is left to the in-memory
+        /// note and to <see cref="FindMaster"/>, which picks whoever used it last.</para>
+        /// </summary>
+        internal static bool KeepSignInScreenId(PluginConfiguration? config, string? deviceId, DateTime now)
+        {
+            var plain = deviceId?.Trim();
+            if (config?.KnownDevices == null || string.IsNullOrEmpty(plain) || plain.Length > MaxDeviceIdLength) return false;
+
+            // On record already, as a row or an alias.
+            if (LookupRow(config, plain) != null) return false;
+
+            var rows = DerivedRows(config, plain);
+            if (rows.Count == 0 || rows.Select(r => r.MasterUserId).Distinct().Count() != 1) return false;
+
+            var keep = rows.OrderByDescending(r => r.LastSeen).First();
+            var aliases = (keep.Aliases ?? new List<string>())
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Append(plain)
+                .ToList();
+            keep.Aliases = aliases.Skip(Math.Max(0, aliases.Count - KnownDevice.MaxAliases)).ToList();
+
+            // With the set's own id on record, its other rows are provably this one.
+            MergeSameDevices(config, keep.MasterUserId, now);
+            return true;
+        }
+
+        /// <summary><see cref="KeepSignInScreenId"/>, under the lock, with the save.</summary>
+        public static void KeepSignInScreenIdAndSave(string? deviceId)
+        {
+            lock (ProfilesBaseController.ConfigLock)
+            {
+                var config = Plugin.Instance?.Configuration;
+                if (config != null && KeepSignInScreenId(config, deviceId, DateTime.UtcNow))
+                {
+                    Plugin.Instance?.SaveConfiguration();
+                }
+            }
         }
 
         /// <summary>
@@ -386,7 +452,9 @@ namespace Jellyfin.Profiles.Auth
 
         /// <summary>
         /// The names households gave their profiles. An Android TV sign-in screen shows them and hashes
-        /// them into the device id it signs in with.
+        /// them into the device id it signs in with. Each comes twice, plain and with
+        /// <see cref="ProfileNameRewriter.ClashMarker"/> after it, because a name that is another
+        /// account's username is shown (and so hashed) with the marker.
         /// </summary>
         internal static IEnumerable<string> HouseholdNames(PluginConfiguration config)
         {
@@ -395,6 +463,7 @@ namespace Jellyfin.Profiles.Auth
             return config.Mappings
                 .Where(m => m.ProfileUserId != m.MasterUserId && !string.IsNullOrWhiteSpace(m.ProfileName))
                 .Select(m => m.ProfileName)
+                .SelectMany(n => new[] { n, n.Trim() + ProfileNameRewriter.ClashMarker })
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
         }
@@ -491,8 +560,12 @@ namespace Jellyfin.Profiles.Auth
             return Convert.ToHexString(hash).ToLowerInvariant();
         }
 
-        /// <summary>Longest device id recorded; a real client id is far shorter.</summary>
-        public const int MaxDeviceIdLength = 128;
+        /// <summary>
+        /// Longest device id recorded. jellyfin-web's id is base64(user agent + "|" + time), so a
+        /// desktop Chrome id is about 170 characters and a phone or television browser's can pass
+        /// 250. This was 128 from 1.9.0.2, which silently left every browser off the device list.
+        /// </summary>
+        public const int MaxDeviceIdLength = 512;
 
         /// <summary>Most device rows one household may own.</summary>
         public const int MaxDevicesPerHousehold = 200;
@@ -635,7 +708,7 @@ namespace Jellyfin.Profiles.Auth
                     {
                         logger?.LogWarning(
                             "ProfilesPlugin: a household is at its limit of {Max} devices and every one is on a device list, so {DeviceId} was not recorded.",
-                            MaxDevicesPerHousehold, deviceId);
+                            MaxDevicesPerHousehold, LogText.Clean(deviceId));
                         return false;
                     }
 
@@ -646,7 +719,7 @@ namespace Jellyfin.Profiles.Auth
                 {
                     logger?.LogWarning(
                         "ProfilesPlugin: the server is at its limit of {Max} known devices, so {DeviceId} was not recorded.",
-                        MaxKnownDevices, deviceId);
+                        MaxKnownDevices, LogText.Clean(deviceId));
                     return false;
                 }
 
@@ -691,6 +764,9 @@ namespace Jellyfin.Profiles.Auth
         /// </summary>
         internal static readonly TimeSpan SameDeviceQuietPeriod = TimeSpan.FromDays(7);
 
+        /// <summary>Set at start-up; null in a harness that does not look at the log.</summary>
+        internal static ILogger? Log = null;
+
         /// <summary>
         /// Folds this household's records that are one device into one, and returns how many records
         /// went. Caller must hold <see cref="ProfilesBaseController.ConfigLock"/>. Idempotent.
@@ -716,8 +792,12 @@ namespace Jellyfin.Profiles.Auth
         ///
         /// <para>Merged into the newer record by
         /// <see cref="ProfilesBaseController.MergeDeviceRecords"/>: add before remove, so no whitelist
-        /// passes through empty, and the old id stays as an alias. Two browser windows on two origins are
-        /// not derived, so they stay apart; Tidy up duplicates joins those.</para>
+        /// passes through empty, and the old id stays as an alias.</para>
+        ///
+        /// <para><b>The ids are one browser's</b>, used side by side (two origins, two browser
+        /// profiles): same name, same app and a long shared id prefix. A guess, like the time rule, so
+        /// never for a row on an allow list. This used to wait for someone to press Tidy up duplicates;
+        /// nobody did, and the picker filled with copies (owner decision, 2026-11-15).</para>
         /// </summary>
         internal static int MergeSameDevices(PluginConfiguration? config, Guid householdId, DateTime now)
         {
@@ -730,7 +810,7 @@ namespace Jellyfin.Profiles.Auth
                 .Where(d => d.OwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
                             && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
                             && !string.IsNullOrWhiteSpace(d.Client))
-                .GroupBy(d => d.DeviceName.Trim().ToLowerInvariant() + "\0" + d.Client.Trim().ToLowerInvariant())
+                .GroupBy(ProfilesBaseController.SameDeviceLabel)
                 .Any(g => g.Count() > 1);
             if (!sameLabel) return 0;
 
@@ -738,6 +818,7 @@ namespace Jellyfin.Profiles.Auth
             var names = HouseholdNames(config).ToList();
             var screens = RecentSignInScreens();
             var merged = 0;
+            var intoNames = new List<string>();
 
             // One merge at a time, then look again: each changes the records the next compares.
             for (var guard = 0; guard < MaxDevicesPerHousehold; guard++)
@@ -746,6 +827,19 @@ namespace Jellyfin.Profiles.Auth
                 if (pair == null) break;
                 if (!ProfilesBaseController.MergeDeviceRecordsCore(config, pair.Value.From, pair.Value.Into, pair.Value.Proven)) break;
                 merged++;
+                var into = LookupRow(config, pair.Value.Into)?.DeviceName;
+                if (into != null && !intoNames.Contains(into)) intoNames.Add(into);
+            }
+
+            // Rows vanish from the picker's device list with no word from the person, so it is said
+            // here. Names only, no ids.
+            if (merged > 0 && Log != null)
+            {
+                var household = config.Mappings?.FirstOrDefault(m => m.ProfileUserId == householdId)?.ProfileName;
+                Log.LogInformation(
+                    "ProfilesPlugin: merged {Count} device row(s) of household {Household} into {Devices}.",
+                    merged, LogText.Clean(string.IsNullOrEmpty(household) ? householdId.ToString("N") : household),
+                    string.Join(", ", intoNames.Select(n => LogText.Clean(n))));
             }
 
             return merged;
@@ -759,7 +853,7 @@ namespace Jellyfin.Profiles.Auth
                 .Where(d => d.OwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
                             && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
                             && !string.IsNullOrWhiteSpace(d.Client))
-                .GroupBy(d => d.DeviceName.Trim().ToLowerInvariant() + "\0" + d.Client.Trim().ToLowerInvariant())
+                .GroupBy(ProfilesBaseController.SameDeviceLabel)
                 .Where(g => g.Count() > 1);
 
             // Every id any profile is restricted to; a row is on it by its id or an alias.
@@ -788,6 +882,15 @@ namespace Jellyfin.Profiles.Auth
                         // would hand the allowed device's permission to the other. Only proof may merge it.
                         if (Allowed(older) || Allowed(newer)) continue;
 
+                        // One browser, side by side: two origins, two browser profiles. Merged here since
+                        // Tidy up duplicates went (owner decision, 2026-11-15: always automatic). The ids
+                        // share a long base64 user-agent prefix, so the same browser version on the same OS
+                        // (ProfilesBaseController.SameBrowserIds). Two people's identical phones would match
+                        // too, which is why it is a guess: neither row may be on an allow list (above), and
+                        // no alias is left, so a second device behind the old id comes back as its own row.
+                        if (i > j && ProfilesBaseController.SameBrowserIds(older.DeviceId, newer.DeviceId))
+                            return (older.DeviceId, newer.DeviceId, false);
+
                         if (newer.FirstSeen != DateTime.MinValue
                             && older.LastSeen <= newer.FirstSeen
                             && now - newer.FirstSeen >= SameDeviceQuietPeriod)
@@ -801,6 +904,57 @@ namespace Jellyfin.Profiles.Auth
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Rows a profile is not allowed on that look like a row one is, as row id to allowed id. Asked
+        /// about, never merged: the rules are the guesses <see cref="FindSameDevicePair"/> will not apply
+        /// to an allowed row (owner decision, 2026-11-12), because a kid's iPad renamed "Family Room TV"
+        /// would get the television's permission. A person can tell, so a person is asked (owner
+        /// decision, 2026-11-15).
+        ///
+        /// <para>Same name and app, both used by this household alone (the merge route refuses
+        /// anything else), and either one browser's ids side by side, or the allowed row silent since
+        /// this one appeared. Asked straight away, not after the week the time rule waits: until it is
+        /// answered, the profile is refused on the new id.</para>
+        /// </summary>
+        internal static Dictionary<string, string> LookAlikes(PluginConfiguration? config, Guid householdId)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (config?.KnownDevices == null || config.Mappings == null || householdId == Guid.Empty) return result;
+
+            var allowed = config.Mappings
+                .Where(m => m.MasterUserId == householdId)
+                .SelectMany(m => m.AllowedDeviceIds ?? new List<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToList();
+            if (allowed.Count == 0) return result;
+            bool Allowed(KnownDevice d) => allowed.Any(id => d.Answers(id));
+
+            var groups = config.KnownDevices
+                .Where(d => d.OnlyOwnedBy(householdId) && !string.IsNullOrWhiteSpace(d.DeviceId)
+                            && !ProfilesBaseController.IsPlaceholderDeviceName(d.DeviceName)
+                            && !string.IsNullOrWhiteSpace(d.Client))
+                .GroupBy(ProfilesBaseController.SameDeviceLabel)
+                .Where(g => g.Count() > 1);
+
+            foreach (var g in groups)
+            {
+                var rows = g.ToList();
+                foreach (var row in rows.Where(r => !Allowed(r)))
+                {
+                    var match = rows
+                        .Where(a => a != row && Allowed(a)
+                                    && !(row.NotSameAs ?? new List<string>()).Any(x => a.Answers(x))
+                                    && (ProfilesBaseController.SameBrowserIds(row.DeviceId, a.DeviceId)
+                                        || (row.FirstSeen != DateTime.MinValue && a.LastSeen <= row.FirstSeen)))
+                        .OrderByDescending(a => a.LastSeen)
+                        .FirstOrDefault();
+                    if (match != null) result[row.DeviceId] = match.DeviceId;
+                }
+            }
+
+            return result;
         }
 
         /// <summary>Whether two records are one device's ids by a client's own derivation.</summary>

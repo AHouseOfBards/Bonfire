@@ -137,6 +137,12 @@
       "source": "src/apps/stable/routes/user/settings/index.tsx"
     },
     {
+      "selector": ".mainAnimatedPage.hide",
+      "status": "upstream",
+      "source": "src/components/viewContainer.js",
+      "note": "A page kept in the DOM but not shown. loadView adds mainAnimatedPage to every view and keeps pageContainerCount (3) of them; beforeAnimate hides the rest with classList.add('hide'). checkRoute uses it so an OSD left behind by the player does not count as playback (#48). Same in master (12.0)."
+    },
+    {
       "selector": ".osdControls",
       "status": "upstream",
       "source": "src/controllers/playback/video/index.html"

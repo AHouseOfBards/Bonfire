@@ -89,8 +89,12 @@ var config = configProp.GetValue(plugin);
 config.GetType().GetProperty("BonfireOn").SetValue(config, true);
 var enableProp = cfgType.GetProperty("EnableClientPinLogin", Any);
 Ok("the configuration has an EnableClientPinLogin flag", enableProp != null);
-Ok("and it is OFF by default — this changes how the server authenticates",
-   (bool)enableProp.GetValue(config) == false);
+// A new install turns it on (configbackup holds that). The property itself stays off, so a
+// server upgrading from a file without it is not switched to PIN sign-in behind its back.
+Ok("and it is OFF unless a new install turns it on — this changes how the server authenticates",
+   (bool)enableProp.GetValue(Activator.CreateInstance(cfgType)) == false);
+Ok("a new install turns it on", (bool)enableProp.GetValue(config) == true);
+enableProp.SetValue(config, false);
 
 // NullLogger<T> has a public constructor or an Instance property depending on the abstractions version; use whichever exists.
 var loggerType = typeof(NullLogger<>).MakeGenericType(providerType);
@@ -294,23 +298,100 @@ var kidListHere = (System.Collections.IList)mappingType.GetProperty("AllowedDevi
 
 Ok("the setting for it exists, and is off by default",
    fromAnywhere != null && (bool)fromAnywhere.GetValue(Activator.CreateInstance(cfgType)) == false);
+
+// 2.0.1: almost every household is away from its server, so "home only" meant a PIN-less profile never
+// opened on any of its televisions. It now opens anywhere on a device the household signed in on with a
+// password, the rule a PIN follows; ClientNoPinHomeOnly puts the old rule back.
+var homeOnlyProp = cfgType.GetProperty("ClientNoPinHomeOnly");
+void HomeOnly(bool on) => homeOnlyProp?.SetValue(config, on);
+Ok("the home-only setting exists, and is off by default",
+   homeOnlyProp != null && (bool)homeOnlyProp.GetValue(Activator.CreateInstance(cfgType)) == false);
 FromDevice("family-tv", home: false);
-Ok("a PIN-less profile is refused from outside the home network, on a device the household uses",
+Ok("a PIN-less profile opens from outside the home network, on a device the household signed in on",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+FromDevice("stranger-tv", home: false);
+Ok("but not on a device the household never signed in on",
    Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+FromDevice("family-tv", home: false);
+HomeOnly(true);
+Ok("with home only on, a PIN-less profile is refused from outside, on a device the household uses",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+Anywhere(true);
+Ok("and 'anywhere' does not undo home only for a PIN-less profile",
+   Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+Anywhere(false);
+HomeOnly(false);
 Ok("a profile with a PIN and no device list still opens from outside: the PIN is the credential",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 kidListHere.Add("family-tv");
 Ok("a profile with a device list is refused from outside, on a device that is on it",
    Try(MakeUser(KID, "Bardkids"), "4821") == "!AuthenticationException");
 Anywhere(true);
-Ok("with the setting on 'anywhere', a PIN-less profile opens from outside",
-   Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
-Ok("and so does a profile with a device list, on a device that is on it",
+Ok("with the setting on 'anywhere', a profile with a device list opens from outside, on a device that is on it",
    Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
 Anywhere(false);
 FromDevice("family-tv", home: true);
 Ok("at home, a PIN-less profile opens", Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
 Ok("and a profile with a device list opens on a device that is on it", Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+
+// An address the administrator trusted for the household counts as home (2.0.1). Logan's server is
+// not where he lives, and his television's PIN-less profile was refused at his own house, while the
+// web switcher and the picker already opened it from a trusted address (#42).
+{
+    var captureFrom = requestDevice.GetMethod("Capture", BindingFlags.Public | BindingFlags.Static,
+        new[] { typeof(string), typeof(string), typeof(bool), typeof(System.Net.IPAddress) });
+    var entryType = asm.GetType("Jellyfin.Profiles.Configuration.TrustedAddressEntry", true);
+    var trustedList = (System.Collections.IList)cfgType.GetProperty("TrustedAddressEntries").GetValue(config);
+    object Entry(string address, Guid household)
+    {
+        var e = Activator.CreateInstance(entryType);
+        entryType.GetProperty("Address").SetValue(e, address);
+        entryType.GetProperty("UserIds").SetValue(e, new List<Guid> { household });
+        return e;
+    }
+    void FromAway(string address)
+    {
+        if (captureFrom != null) captureFrom.Invoke(null, new object[] { "family-tv", null, false, System.Net.IPAddress.Parse(address) });
+        else FromDevice("family-tv", home: false);
+    }
+    UserManagerStub.Add(MASTER, MakeUser(MASTER, "bard"));
+    UserManagerStub.Add(GUEST, MakeUser(GUEST, "Bardguest"));
+    UserManagerStub.Add(KID, MakeUser(KID, "Bardkids"));
+
+    // Home only, so a PIN-less profile from away is refused unless the address counts as home.
+    HomeOnly(true);
+    trustedList.Add(Entry("76.78.141.0/24", MASTER));
+    FromAway("76.78.141.5");
+    Ok("from an address trusted for the household, a PIN-less profile opens",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "Bardguest");
+    kidListHere.Add("family-tv");
+    Ok("and so does a profile with a device list, on a device that is on it",
+       Try(MakeUser(KID, "Bardkids"), "4821") == "Bardkids");
+    kidListHere.Clear();
+    Ok("a typed value is still refused for a PIN-less profile",
+       Try(MakeUser(GUEST, "Bardguest"), "1234") == "!AuthenticationException");
+
+    FromAway("203.0.113.9");
+    Ok("from an address outside the trusted range it is still refused",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+    trustedList.Clear();
+    trustedList.Add(Entry("76.78.141.0/24", LONER));
+    FromAway("76.78.141.5");
+    Ok("an address trusted for another household does not count",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+
+    trustedList.Clear();
+    trustedList.Add(Entry("76.78.141.0/24", MASTER));
+    UserManagerStub.Administrators.Add(GUEST);
+    Ok("nor for an account that administers the server",
+       Try(MakeUser(GUEST, "Bardguest"), "") == "!AuthenticationException");
+    UserManagerStub.Administrators.Clear();
+
+    trustedList.Clear();
+    HomeOnly(false);
+    FromDevice("family-tv", home: true);
+}
 kidListHere.Clear();
 
 // The hole, closed. This is the curl-from-anywhere case.
@@ -396,6 +477,16 @@ Ok("a display name and the right PIN resolve to the real account",
 
 Ok("and the wrong PIN is still refused",
    TryName("kids", "4822") == "!AuthenticationException");
+
+// A name that is another account's username is shown with a zero-width space after it (#46), and
+// the app sends it back that way. Only a trailing one is the marker: one anywhere else is a
+// different name, which matches nothing.
+Ok("a display name with the sign-in screen's marker resolves to the real account",
+   TryName("kids​", "4821") == "Bardkids");
+Ok("and with the wrong PIN is refused",
+   TryName("kids​", "4822") == "!AuthenticationException");
+Ok("a marker in the middle is not taken off",
+   TryName("ki​ds", "4821") == "!AuthenticationException");
 
 // A main account turned off in Dashboard -> Users shuts its profiles too (R-1135). Jellyfin
 // checks the account being signed into, which is the profile's and was never turned off.
@@ -729,11 +820,7 @@ if (reconcile != null)
     };
     var recordingManager = RecordingUserManager.Create(users, writes);
 
-    var taskLoggerType = typeof(NullLogger<>).MakeGenericType(taskType);
-    var taskLoggerProp = taskLoggerType.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-    var taskLogger = taskLoggerProp != null
-        ? taskLoggerProp.GetValue(null)
-        : Activator.CreateInstance(taskLoggerType, nonPublic: true);
+    var taskLogger = Activator.CreateInstance(typeof(StartLog<>).MakeGenericType(taskType));
 
     var task = Activator.CreateInstance(
         taskType, new StubPaths(tempDir), recordingManager, taskLogger);
@@ -856,6 +943,18 @@ if (reconcile != null)
     catch (Exception e) { startThrew = (e.InnerException ?? e).GetType().Name; }
     mappings.Remove(null);
     Ok("a reconciliation that throws does not stop the server starting", startThrew == null, startThrew);
+
+    // A report starts from one line: versions, size, and which client options are on.
+    StartLines.All.Clear();
+    try { ((System.Threading.Tasks.Task)taskType.GetMethod("StartAsync").Invoke(task, new object[] { System.Threading.CancellationToken.None })).GetAwaiter().GetResult(); }
+    catch (Exception e) { startThrew = (e.InnerException ?? e).GetType().Name; }
+    var startLine = StartLines.All.FirstOrDefault(l => l.Contains("ProfilesPlugin: Bonfire ")) ?? "";
+    Ok("start-up writes one line naming Bonfire's version, Jellyfin's and the runtime",
+       startLine.StartsWith("Information: ") && startLine.Contains(" on Jellyfin ") && startLine.Contains(".NET"), startLine);
+    Ok("and the households, the profiles and the client options that are on",
+       startLine.Contains("households") && startLine.Contains("profiles")
+       && startLine.Contains("PIN sign-in: on") && startLine.Contains("Profiles on sign-in screens: "), startLine);
+    Ok("and it is one line", StartLines.All.Count(l => l.Contains("ProfilesPlugin: Bonfire ")) == 1, string.Join(" | ", StartLines.All));
 
     // Out of the fixture again: the end-state checks below expect Jellyfin's own
     // provider everywhere.
@@ -1514,6 +1613,20 @@ if (fails.Count > 0)
 }
 Console.WriteLine(pass + " passed, 0 failed");
 
+public static class StartLines { public static readonly List<string> All = new(); }
+
+/// <summary>Keeps what the bootstrap task logs, as "Level: text".</summary>
+public sealed class StartLog<T> : Microsoft.Extensions.Logging.ILogger<T>
+{
+    public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state,
+        Exception exception, Func<TState, Exception, string> formatter)
+    {
+        lock (StartLines.All) StartLines.All.Add(logLevel + ": " + formatter(state, exception));
+    }
+}
+
 /// <summary>Counts the provider's "too many wrong PINs" refusals: guesses that never reached the comparison.</summary>
 public sealed class CountingLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
 {
@@ -1696,8 +1809,21 @@ public class UserManagerStub : DispatchProxy
 
     public static IUserManager Create() => Create<IUserManager, UserManagerStub>();
 
+    /// <summary>Accounts that administer the server, for trusted addresses (never for an administrator).</summary>
+    public static readonly HashSet<Guid> Administrators = new();
+
     protected override object? Invoke(MethodInfo targetMethod, object?[]? args)
     {
+        if (targetMethod.Name == "GetUserDto" && args?[0] is User asked)
+        {
+            return new MediaBrowser.Model.Dto.UserDto
+            {
+                Id = asked.Id,
+                Name = asked.Username,
+                Policy = new MediaBrowser.Model.Users.UserPolicy { IsAdministrator = Administrators.Contains(asked.Id) },
+            };
+        }
+
         if (targetMethod.Name != "GetUserById")
         {
             throw new NotSupportedException(

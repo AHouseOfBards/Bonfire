@@ -35,7 +35,8 @@ function sheetFor(size) {
     ok('size ' + size + ': the sheet drifts', !!use && !!frames);
     ok('size ' + size + ': the name is an identifier', !!use && /^-?[_a-zA-Z][_a-zA-Z0-9-]*$/.test(use[1]), use && use[1]);
     ok('size ' + size + ': the animation and the keyframes agree', !!use && !!frames && use[1] === frames[1]);
-    ok('size ' + size + ': it travels one whole tile', !!frames && frames[2] === size + 'px', frames && frames[2]);
+    // Bloom's blossoms are laid out 3 by 3 (patternlayout.js), so one repeat is three sizes.
+    ok('size ' + size + ': it travels one whole repeat', !!frames && frames[2] === (size * 3) + 'px', frames && frames[2]);
 });
 
 console.log('\n' + pass + ' passed, ' + fails.length + ' failed');

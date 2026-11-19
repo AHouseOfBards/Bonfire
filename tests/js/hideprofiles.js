@@ -132,7 +132,7 @@ function usersPage(version) {
 
 function build(opts) {
     const styles = [];       // <style> elements appended to head
-    const counts = { qs: 0, qsa: 0, fetches: 0, mappingFetches: 0 };
+    const counts = { qs: 0, qsa: 0, cardQsa: 0, fetches: 0, mappingFetches: 0 };
     const timers = [];
     const store = {};
     const page = opts.page;
@@ -169,9 +169,13 @@ function build(opts) {
             // is judged by what it really does.
             elementFromPoint: () => null,
             querySelector: () => { counts.qs++; return null; },
+            // Card queries are counted on their own. The route tick has one querySelectorAll of
+            // its own every tick (the playback check, #48, enumerated in routetick.js), and a
+            // count of every call failed on it while saying nothing about cards.
             querySelectorAll: sel => {
                 counts.qsa++;
-                return /\.card/.test(sel) ? page.all : [];
+                if (/\.card/.test(sel)) { counts.cardQsa++; return page.all; }
+                return [];
             },
             getElementById: id => styles.filter(s => s.id === id)[0] || null,
             createElement: tag => ({
@@ -234,11 +238,14 @@ async function main() {
             ok(tag + 'an account outside Bonfire is shown', !isHidden(env, c[OTHER]));
 
             // Steady state: 100 unchanged ticks ask nothing of the document or the server.
-            env.counts.qs = env.counts.qsa = env.counts.fetches = 0;
+            env.counts.qs = env.counts.qsa = env.counts.cardQsa = env.counts.fetches = 0;
             for (let i = 0; i < 100; i++) env.plugin.checkRoute();
             await settle();
             ok(tag + '100 unchanged ticks fetch nothing', env.counts.fetches === 0, env.counts.fetches + ' fetches');
-            ok(tag + '100 unchanged ticks query no cards', env.counts.qsa === 0, env.counts.qsa + ' querySelectorAll calls');
+            ok(tag + '100 unchanged ticks query no cards', env.counts.cardQsa === 0, env.counts.cardQsa + ' card queries');
+            // And nothing else either, beyond the tick's one playback check.
+            ok(tag + '100 unchanged ticks run no other querySelectorAll', env.counts.qsa - env.counts.cardQsa <= 100,
+               (env.counts.qsa - env.counts.cardQsa) + ' other calls');
 
             // React renders the cards after the route settles and again on each list reload;
             // the rule must not depend on when they appeared.
