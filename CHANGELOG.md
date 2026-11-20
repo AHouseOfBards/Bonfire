@@ -9,6 +9,12 @@ See [docs/beta-channel.md](docs/beta-channel.md).
 
 ---
 
+## 2.1.1  — 2026-11-19
+
+**Fixed**
+
+- Videos would not play in Jellyfin Media Player after picking a profile. (#49)
+
 ## 2.1.0  — 2026-11-19
 
 **Fixed**
