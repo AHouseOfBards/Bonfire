@@ -4070,6 +4070,39 @@
         /// reaches the timer.
         RELOAD_ESCALATE_MS: 1200,
 
+        /// Where Jellyfin Media Player wants a reload to go, or null anywhere else.
+        ///
+        /// Issue #49: after a profile switch the app showed the film's picture and never
+        /// played it. Its video player is a script it loads from file:// (jmpInfo.scriptPath),
+        /// which the page may only do while it is in the process the app opened from its own
+        /// file:// start page, find-webclient.html. location.reload() and every other
+        /// navigation from the server's page start a new process without that right, so the
+        /// player failed to load and jellyfin-web fell back to its HTML player, which cannot
+        /// play what the server sends the app. Measured on JMP 1.11.1 over devtools: a fresh
+        /// start loads the player; after location.reload() it fails; going through
+        /// find-webclient.html loads it again. That page signs back in to the saved server
+        /// (settings.main.userWebClient) by itself; with none saved it would show the
+        /// connect form, so then this answers null.
+        _desktopAppRestartUrl: function () {
+            try {
+                const info = window.jmpInfo;
+                const path = info && typeof info.scriptPath === 'string' ? info.scriptPath : '';
+                const saved = info && info.settings && info.settings.main && info.settings.main.userWebClient;
+                if (!window.NativeShell || !/^file:/i.test(path) || !saved) return null;
+                return path.replace(/\/*$/, '/') + 'find-webclient.html';
+            } catch (e) {
+                return null;
+            }
+        },
+
+        /// Reloads the document where no route has to survive (sign-out, maintenance):
+        /// through the desktop app's start page there, plainly everywhere else.
+        reloadDocument: function () {
+            const restart = this._desktopAppRestartUrl();
+            if (restart) window.location.href = restart;
+            else window.location.reload();
+        },
+
         /// Reloads the page, and checks that the reload happened.
         ///
         /// By now the profile's token is in localStorage and ApiClient; only the document
@@ -4085,11 +4118,18 @@
         /// So each step is a different mechanism, not a retry. The last rung says so
         /// aloud: showing a child the parent's Continue Watching is worse than admitting
         /// the reload failed.
+        ///
+        /// In Jellyfin Media Player the first step is the app's own start page instead
+        /// (_desktopAppRestartUrl).
         _reloadWithFallback: function (target) {
             const step = (n) => {
                 try {
                     if (n === 0) {
-                        if (target) {
+                        const restart = this._desktopAppRestartUrl();
+                        if (restart) {
+                            // The desktop app opens on its home screen; the target is home anyway.
+                            window.location.href = restart;
+                        } else if (target) {
                             // replace() so Back does not return to the previous profile's page.
                             window.location.replace(target);
                             // A fragment-only change does not reload the document, and re-initializing is the
@@ -5541,7 +5581,7 @@
             }
             
             window.location.hash = '#/login';
-            window.location.reload();
+            this.reloadDocument();
         },
 
         /// First line of the handler for any request the person made on purpose. A 401
@@ -7336,7 +7376,7 @@
                 out.className = 'profiles-btn jpf-btn-secondary focusable';
                 out.textContent = t('maintenance.signOut');
                 out.addEventListener('click', () => {
-                    Promise.resolve(ApiClient.logout()).then(() => window.location.reload(), () => window.location.reload());
+                    Promise.resolve(ApiClient.logout()).then(() => this.reloadDocument(), () => this.reloadDocument());
                 });
                 inner.appendChild(out);
                 inner.appendChild(status);
@@ -7384,7 +7424,7 @@
                 }
                 this._stopMaintenanceTimer();
                 box.remove();
-                if (blocking) window.location.reload();
+                if (blocking) this.reloadDocument();
             });
         },
 
